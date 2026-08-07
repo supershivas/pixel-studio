@@ -1,4 +1,4 @@
-import { state, PALETTE, stage } from "./state.js";
+import { state, PALETTE, stage, APP_VERSION } from "./state.js";
 import { render, commitFloat, bakeOffset, idx, inBounds, layerPixels, hexToRgb, compositeLayers, newLayer, newImageLayer } from "./helpers.js";
 import { snapshot, history } from "./history.js";
 import { bakeShape, cancelShape, shapeToPreview, updateTextGlyph, textPreview, commitText, rasterizeMicro, rasterizeTTF, textLabel } from "./drawing.js";
@@ -540,6 +540,7 @@ export function applyPrefs(){
   set("prefConfirm",prefs.confirm,"checked");
   set("prefFilled",prefs.filled,"checked");
   set("prefHist",prefs.hist,"value");
+  const pv=document.getElementById("prefVersion"); if(pv) pv.textContent="v"+APP_VERSION;
   render();
 }
 document.getElementById("prefsBtn").onclick=e=>{ e.stopPropagation(); closeMenus(); document.getElementById("prefsModal").classList.add("open"); };

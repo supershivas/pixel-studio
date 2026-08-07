@@ -1,3 +1,5 @@
+export const APP_VERSION = "1.0.0";
+
 // ---------- Palette : 16 teintes flashy, bleu + jaune UE inclus ----------
 export const PALETTE = [
   "#003399","#FFCC00","#FF2D95","#FF1744","#FF6B00","#A6FF00",

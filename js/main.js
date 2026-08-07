@@ -5,6 +5,7 @@ import { FONTS, OS, updateTextGlyph } from "./drawing.js";
 import { fitZoom } from "./interaction.js";
 import { setColor, buildLayers, loadPrefs, applyPrefs } from "./ui.js";
 import { restoreAutosaveIfAny, scheduleAutosave } from "./io.js";
+import "./modals.js";
 
 // ---------- Init ----------
 loadPrefs();

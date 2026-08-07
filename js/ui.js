@@ -161,6 +161,7 @@ function fxApply(){ state.thumbsDirty=true; render(); buildLayers(); }
 function openFxModal(L){
   fxLayer=L; const isImg=!!L.img; const fx=ensureFx(L);
   document.getElementById("fxBlend").value=L.blend||"normal";
+  document.getElementById("fxOpacity").value=Math.round(L.opacity*100);
   ["fxColor","fxStrokeOn","fxStrokeW","fxStrokeColor","fxShadowOn","fxShadowDX","fxShadowDY","fxShadowColor","fxResetBtn"]
     .forEach(id=>{ document.getElementById(id).disabled=isImg; });
   document.getElementById("fxColor").style.background=(L.text&&L.text.color)||state.color;
@@ -174,6 +175,7 @@ function openFxModal(L){
   document.getElementById("fxModal").classList.add("open");
 }
 document.getElementById("fxBlend").onchange=e=>{ if(fxLayer){ fxLayer.blend=e.target.value; fxApply(); } };
+document.getElementById("fxOpacity").oninput=e=>{ if(fxLayer){ fxLayer.opacity=+e.target.value/100; fxApply(); } };
 const _fx=()=>fxLayer?ensureFx(fxLayer):null;
 document.getElementById("fxColor").onclick=()=>{ if(!fxLayer) return; openColorPicker(document.getElementById("fxColor"), (fxLayer.text&&fxLayer.text.color)||state.color, hex=>{ recolorLayer(fxLayer,hex); document.getElementById("fxColor").style.background=hex; }); };
 document.getElementById("fxStrokeOn").onchange=e=>{ const f=_fx(); if(f){ f.stroke.on=e.target.checked; fxApply(); } };
@@ -195,7 +197,6 @@ buildSwatches();
 // ---------- Layers UI ----------
 const layersEl=document.getElementById("layers");
 let dragId=null;
-let _lastLayerClick={id:null,t:0};
 function clearDropMarks(){ [...layersEl.children].forEach(el=>el.classList.remove("drop-above","drop-below","drop-into")); }
 // bloc contigu occupé par un calque (une seule case) ou par un dossier + ses membres (l'en-tête est au sommet visuel = index le plus haut)
 function blockOf(L){
@@ -293,18 +294,12 @@ export function buildLayers(){
     nm.addEventListener("click",e=>e.stopPropagation());
     nm.addEventListener("focus",()=>row.draggable=false);
     nm.addEventListener("blur",()=>row.draggable=true);
-    const op=document.createElement("input"); op.type="range"; op.className="op-row"; op.min=0; op.max=100; op.value=Math.round(L.opacity*100); op.title="Opacité";
-    op.addEventListener("input",e=>{ L.opacity=e.target.value/100; render(); });
-    op.addEventListener("click",e=>e.stopPropagation());
-    op.addEventListener("mousedown",()=>row.draggable=false);
-    op.addEventListener("mouseup",()=>row.draggable=true);
-    col.append(nm,op);
-    if(L.img){ const b=document.createElement("span"); b.className="imgbadge"; b.textContent="IMG"; b.title="Calque image (référence, non exporté)"; row.append(grip,vis,thumb,col,b); }
-    else row.append(grip,vis,thumb,col);
-    row.addEventListener("click",()=>{ if(state.activeShape) bakeShape(); if(state.floatSel) commitFloat(); const ni=state.layers.indexOf(L); if(ni>=0) state.active=ni;
-      const now=Date.now();
-      if(_lastLayerClick.id===L.id && now-_lastLayerClick.t<350){ _lastLayerClick={id:null,t:0}; buildLayers(); openFxModal(L); return; }
-      _lastLayerClick={id:L.id,t:now}; buildLayers(); });
+    col.append(nm);
+    const opts=document.createElement("button"); opts.className="lopts"; opts.title="Options du calque (opacité, fusion, contour, ombre…)";
+    opts.textContent="⚙"; opts.addEventListener("click",e=>{ e.stopPropagation(); openFxModal(L); });
+    if(L.img){ const b=document.createElement("span"); b.className="imgbadge"; b.textContent="IMG"; b.title="Calque image (référence, non exporté)"; row.append(grip,vis,thumb,col,b,opts); }
+    else row.append(grip,vis,thumb,col,opts);
+    row.addEventListener("click",()=>{ if(state.activeShape) bakeShape(); if(state.floatSel) commitFloat(); const ni=state.layers.indexOf(L); if(ni>=0) state.active=ni; buildLayers(); });
     layersEl.appendChild(row);
   }
   refreshThumbs();
@@ -368,6 +363,7 @@ function askConfirm(msg, onYes){
 }
 function closeConfirm(){ document.getElementById("confirmModal").classList.remove("open"); _confirmYes=null; }
 document.getElementById("confirmCancel").onclick=closeConfirm;
+document.getElementById("confirmClose").onclick=closeConfirm;
 document.getElementById("confirmModal").addEventListener("click",e=>{ if(e.target.id==="confirmModal") closeConfirm(); });
 document.getElementById("confirmOk").onclick=()=>{
   if(document.getElementById("confirmDontAsk").checked){ prefs.confirm=false; savePrefs(); applyPrefs(); }

@@ -160,6 +160,7 @@ window.addEventListener("keydown",e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="x"){ if(state.sel||state.floatSel){ e.preventDefault(); cutSelection(); setHint("Coupé"); } return; }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="v"){ if(state.clipboard){ e.preventDefault(); pasteClipboard(); } return; }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="t"){ e.preventDefault(); enterLayerTransform(); return; }
+  if(e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase()==="t"){ e.preventDefault(); enterLayerTransform(); return; }
   if((e.key==="Delete"||e.key==="Backspace") && (state.sel||state.floatSel)){ e.preventDefault(); deleteSelection(); return; }
   if((e.key.startsWith("Arrow")) && (state.sel||state.floatSel)){ e.preventDefault(); const n=e.shiftKey?10:1;
     if(e.key==="ArrowLeft") nudgeSelection(-n,0); else if(e.key==="ArrowRight") nudgeSelection(n,0);

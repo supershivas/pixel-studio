@@ -3,6 +3,7 @@ import { idx, inBounds, layerAt, setLayerAt, newLayer, hexToRgb, render, commitF
 import { snapshot } from "./history.js";
 import { setHint } from "./interaction.js";
 import { buildLayers, commitCanvasText } from "./ui.js";
+import { showToast } from "./toast.js";
 
 // ---------- Drawing primitives ----------
 export function stamp(x,y,col,L){ // brush square, mirror-aware ; L = calque cible (décalage géré)
@@ -297,7 +298,7 @@ export function bakeShape(){
   state.activeShape=null; state.txOp=null; state.previewCells=null; setHint("");
   buildLayers(); render();
 }
-export function cancelShape(){ if(state.activeShape && state.activeShape.kind==="layer"){ state.activeShape.targetLayer.data=state.activeShape.src; }
+export function cancelShape(){ if(state.activeShape && state.activeShape.kind==="layer"){ state.activeShape.targetLayer.data=state.activeShape.fullData; }
   state.activeShape=null; state.txOp=null; state.previewCells=null; setHint(""); buildLayers(); render(); }
 export function bakeIfAny(){ if(state.activeShape) bakeShape(); }
 export function enterLayerTransform(){
@@ -305,13 +306,21 @@ export function enterLayerTransform(){
   if(state.textEditing) commitCanvasText();
   commitFloat(); state.sel=null;
   const L=state.layers[state.active];
-  if(L.img){ alert("« Transformer » s'applique aux calques de dessin, pas aux calques image."); return; }
+  if(L.img){ showToast("« Transformer » s'applique aux calques de dessin, pas aux calques image.",{type:"warn"}); return; }
   if(!L.data.some(v=>v!==null)){ setHint("Calque vide : rien à transformer."); return; }
   snapshot();
   bakeOffset(L);
-  const src=L.data.slice(); L.data=new Array(state.W*state.H).fill(null);
-  state.activeShape={ kind:"layer", targetLayer:L, src, sw:state.W, sh:state.H,
-    cx:state.W/2, cy:state.H/2, w:state.W, h:state.H, rot:0, skewX:0, skewY:0, filled:true, color:"#000" };
+  // cadre de transformation = boîte englobante des pixels dessinés, pas tout le canevas
+  const full=L.data;
+  let minx=state.W, miny=state.H, maxx=-1, maxy=-1;
+  for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){ if(full[y*state.W+x]!==null){
+    if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y; } }
+  const bw=maxx-minx+1, bh=maxy-miny+1;
+  const src=new Array(bw*bh).fill(null);
+  for(let y=0;y<bh;y++) for(let x=0;x<bw;x++) src[y*bw+x]=full[(miny+y)*state.W+(minx+x)];
+  L.data=new Array(state.W*state.H).fill(null);
+  state.activeShape={ kind:"layer", targetLayer:L, src, sw:bw, sh:bh, fullData:full,
+    cx:minx+bw/2, cy:miny+bh/2, w:bw, h:bh, rot:0, skewX:0, skewY:0, filled:true, color:"#000" };
   shapeToPreview(); render();
   setHint("Transforme le calque · Entrée valide · Échap annule");
 }

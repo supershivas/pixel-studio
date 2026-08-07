@@ -1,10 +1,10 @@
 import { state } from "./state.js";
 import { newLayer, render } from "./helpers.js";
-import { snapshot } from "./history.js";
+import { snapshot, onSnapshot } from "./history.js";
 import { FONTS, OS, updateTextGlyph } from "./drawing.js";
 import { fitZoom } from "./interaction.js";
 import { setColor, buildLayers, loadPrefs, applyPrefs } from "./ui.js";
-import "./io.js";
+import { restoreAutosaveIfAny, scheduleAutosave } from "./io.js";
 
 // ---------- Init ----------
 loadPrefs();
@@ -12,9 +12,11 @@ state.layerSeq=1;
 state.layers=[newLayer("Fond"),newLayer("Dessin")]; state.active=1;
 setColor(state.color);
 buildLayers();
-snapshot();
+snapshot();                    // état initial vierge : pas encore suivi par l'autosave
 applyPrefs();
 fitZoom();
+restoreAutosaveIfAny();        // propose de restaurer un dessin précédent, s'il y en a un
+onSnapshot(scheduleAutosave);  // à partir de maintenant, chaque snapshot programme une sauvegarde
 window.addEventListener("resize",()=>{ /* laisser le zoom manuel */ });
 
 // Polices pixel : prêtes dès chargement (data-URI => quasi instantané)

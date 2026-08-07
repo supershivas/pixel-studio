@@ -26,6 +26,16 @@ export function newImageLayer(dataURL,name){
   return L;
 }
 
+// ---------- Dossiers de calques (groupes) ----------
+export function newGroup(name){
+  return { id: state.layerSeq++, isGroup:true, name: name||"Dossier", visible:true, expanded:true };
+}
+export function groupOf(id){ return id ? state.layers.find(L=>L.isGroup && L.id===id) : null; }
+// visibilité effective : un calque dans un dossier masqué est invisible même si sa propre visibilité est active
+export function effVisible(L){ if(!L.visible) return false;
+  if(L.groupId){ const g=groupOf(L.groupId); if(g && !g.visible) return false; }
+  return true; }
+
 // ---------- Compositing ----------
 // pixels effectifs d'un calque en coordonnées canevas (décalage + effets couleur/contour/ombre)
 export function layerPixels(L){
@@ -57,7 +67,7 @@ export function blendCh(mode,cb,cs){ switch(mode){
 export function compositeLayers(ls){
   const data = new Uint8ClampedArray(state.W*state.H*4);
   for(const L of ls){
-    if(!L.visible || L.opacity<=0 || L.img) continue;
+    if(L.isGroup || !effVisible(L) || L.opacity<=0 || L.img) continue;
     const as=L.opacity, mode=L.blend||"normal", px=layerPixels(L);
     for(const [k,hex] of px){ const [gx,gy]=k.split(",").map(Number);
       const [r,g,b]=hexToRgb(hex); const j=(gy*state.W+gx)*4;
@@ -119,7 +129,7 @@ export function render(){
   artwork.width=state.W*state.zoom; artwork.height=state.H*state.zoom; actx.imageSmoothingEnabled=false;
   const tmp=composite; tmp.width=state.W; tmp.height=state.H; const tctx=cctx;
   for(const L of state.layers){
-    if(!L.visible || L.opacity<=0) continue;
+    if(L.isGroup || !effVisible(L) || L.opacity<=0) continue;
     actx.save(); actx.globalAlpha=L.opacity; actx.globalCompositeOperation=blendOp(L.blend);
     if(L.img){
       if(L._imgEl && L._imgEl.complete && L._imgEl.naturalWidth){ actx.imageSmoothingEnabled=true;

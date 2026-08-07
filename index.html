@@ -195,6 +195,7 @@
   .layer.dragging{opacity:.4}
   .layer.drop-above{box-shadow:inset 0 3px 0 var(--accent)}
   .layer.drop-below{box-shadow:inset 0 -3px 0 var(--accent)}
+  .layer.drop-into{box-shadow:inset 0 0 0 2px var(--accent)}
   .layer .grip{color:var(--ink-dim);font-size:13px;line-height:1;cursor:grab;user-select:none;letter-spacing:-2px}
   .layer .lcol{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
   .layer .op-row{width:100%;height:12px;accent-color:var(--accent);cursor:pointer}
@@ -233,6 +234,41 @@
   .exports .r button{flex:1}
   .note{font-size:11px;line-height:1.5;color:var(--ink-dim);margin:8px 0 0}
   .note b{color:var(--accent)}
+
+  .toast-host{position:fixed;right:14px;bottom:14px;z-index:200;display:flex;flex-direction:column;gap:8px;
+    max-width:min(360px,90vw)}
+  .toast{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 14px;border-radius:9px;
+    background:var(--panel);border:1px solid var(--line);box-shadow:0 14px 34px rgba(0,0,0,.5);
+    font-size:13px;color:var(--ink);animation:toast-in .16s ease-out}
+  .toast.out{animation:toast-out .18s ease-in forwards}
+  .toast-msg{flex:1;line-height:1.4}
+  .toast-success{border-left:3px solid #2eea8b}
+  .toast-error{border-left:3px solid var(--danger)}
+  .toast-info{border-left:3px solid var(--accent-blue)}
+  .toast-warn{border-left:3px solid var(--accent)}
+  .toast-action{background:var(--accent);color:#1a1400;border-color:var(--accent);font-weight:700;padding:5px 9px;font-size:12px}
+  .toast-x{background:transparent;border:none;color:var(--ink-dim);font-size:16px;line-height:1;padding:2px 4px}
+  .toast-x:hover{color:var(--ink)}
+  @keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes toast-out{to{opacity:0;transform:translateY(8px)}}
+
+  .toolopts{display:flex;align-items:center;gap:20px;padding:8px 16px;flex-wrap:wrap;
+    background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;min-height:20px}
+  .toolopts .row{width:auto;justify-content:flex-start}
+  .toolopts .row input[type=range]{flex:none;width:90px}
+  .toolopts .empty{font-size:12px;color:var(--ink-dim);font-style:italic}
+  .toolopts .row[hidden],.toolopts .check[hidden]{display:none}
+  .toolopts #textOpts{display:flex;flex-direction:row;align-items:center;gap:20px;padding-top:0;border-top:none}
+  .toolopts #textOpts[hidden]{display:none}
+
+  .layer.group{background:var(--panel-2);border-style:solid;cursor:pointer}
+  .layer.grouped{margin-left:22px}
+  .layer .chevron{width:16px;height:22px;display:grid;place-items:center;border:none;background:transparent;
+    padding:0;color:var(--ink-dim);flex:0 0 auto}
+  .layer .trash{width:22px;height:22px;display:grid;place-items:center;border:none;background:transparent;
+    padding:0;color:var(--ink-dim);flex:0 0 auto}
+  .layer .trash:hover{color:var(--danger)}
+  .layer.group .nm{font-weight:600}
   @media (max-width:820px){ .side{width:210px} .rail{width:54px} }
 </style>
 </head>
@@ -273,6 +309,7 @@
       <button class="menu-btn" data-menu="layer">Calque</button>
       <div class="menu" id="menu-layer">
         <button class="menu-item" id="addLayer" data-close>Nouveau calque</button>
+        <button class="menu-item" id="addGroup" data-close>Nouveau dossier</button>
         <button class="menu-item" id="dupLayer" data-close>Dupliquer</button>
         <button class="menu-item" id="transformLayer" data-close>Transformer…</button>
         <button class="menu-item" id="pixelizeLayer" data-close>Pixelliser l'image (sur la palette)</button>
@@ -317,6 +354,31 @@
   <div class="spacer"></div>
 </header>
 
+<div class="toolopts" id="toolOpts">
+  <div class="row" id="optBrush">Taille du crayon <input type="range" id="brush" min="1" max="6" value="1"><span id="brushV" style="font:12px var(--mono);width:16px">1</span></div>
+  <label class="check" id="optFill"><input type="checkbox" id="fillShape"> Formes pleines</label>
+  <div class="row" id="optStroke">Épaisseur du trait <input type="range" id="strokeW" min="1" max="6" value="1"><span id="strokeWV" style="font:12px var(--mono);width:16px">1</span></div>
+  <div class="row" id="optMirror">Symétrie
+    <select id="mirror" style="flex:0 0 auto">
+      <option value="none">Aucune</option>
+      <option value="x">Verticale</option>
+      <option value="y">Horizontale</option>
+      <option value="xy">Les deux</option>
+    </select>
+  </div>
+  <div id="textOpts" hidden>
+    <div class="row">Police
+      <select id="textFont" style="flex:1">
+        <option value="press">Press Start 2P (8 px, titres)</option>
+        <option value="cozette">Cozette (6×13 · multilingue)</option>
+        <option value="micro">Micro 3×5 (latin, minuscule)</option>
+      </select>
+    </div>
+    <div class="row">Taille <input type="range" id="textScale" min="0.5" max="6" step="0.5" value="1"><span id="textScaleV" style="font:12px var(--mono);width:26px">1×</span></div>
+  </div>
+  <span class="empty" id="optEmpty" hidden>Aucune option pour cet outil</span>
+</div>
+
 <main>
   <nav class="rail" id="rail" aria-label="Outils"></nav>
 
@@ -353,38 +415,14 @@
     </div>
 
     <div class="block">
-      <h2>Options d'outil</h2>
-      <div class="opts">
-        <div class="row">Taille du crayon <input type="range" id="brush" min="1" max="6" value="1"><span id="brushV" style="font:12px var(--mono);width:16px">1</span></div>
-        <label class="check"><input type="checkbox" id="fillShape"> Formes pleines</label>
-        <div class="row">Épaisseur du trait <input type="range" id="strokeW" min="1" max="6" value="1"><span id="strokeWV" style="font:12px var(--mono);width:16px">1</span></div>
-        <div class="row">Symétrie
-          <select id="mirror" style="flex:0 0 auto">
-            <option value="none">Aucune</option>
-            <option value="x">Verticale</option>
-            <option value="y">Horizontale</option>
-            <option value="xy">Les deux</option>
-          </select>
-        </div>
-        <div id="textOpts" hidden style="display:flex;flex-direction:column;gap:8px;padding-top:6px;border-top:1px dashed var(--line)">
-          <div class="row">Police
-            <select id="textFont" style="flex:1">
-              <option value="press">Press Start 2P (8 px, titres)</option>
-              <option value="cozette">Cozette (6×13 · multilingue)</option>
-              <option value="micro">Micro 3×5 (latin, minuscule)</option>
-            </select>
-          </div>
-          <div class="row">Taille <input type="range" id="textScale" min="0.5" max="6" step="0.5" value="1"><span id="textScaleV" style="font:12px var(--mono);width:26px">1×</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="block">
       <h2>Calques</h2>
       <div class="layers" id="layers"></div>
       <div class="layer-tools">
         <button id="addLayerBtn" class="ltool" title="Ajouter un calque · déposer un calque ici pour le dupliquer">
           <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <button id="addGroupBtn" class="ltool" title="Nouveau dossier">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
         </button>
         <button id="delLayerBtn" class="ltool" title="Supprimer le calque · déposer un calque ici pour le supprimer">
           <svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 7h14M10 7V5h4v2M6 7l1 12h10l1-12" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
@@ -505,6 +543,8 @@
     <div class="foot"><button class="mini" id="prefsReset">Réinitialiser</button><button class="menu-btn active" id="prefsOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Terminé</button></div>
   </div>
 </div>
+
+<div id="toastHost" class="toast-host" aria-live="polite"></div>
 
 <script type="module" src="js/main.js"></script>
 </body>

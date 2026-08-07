@@ -1,9 +1,10 @@
 import { state, PALETTE, stage, APP_VERSION } from "./state.js";
-import { render, commitFloat, bakeOffset, idx, inBounds, layerPixels, hexToRgb, compositeLayers, newLayer, newImageLayer } from "./helpers.js";
+import { render, commitFloat, bakeOffset, idx, inBounds, layerPixels, hexToRgb, compositeLayers, newLayer, newImageLayer, newGroup, groupOf, effVisible } from "./helpers.js";
 import { snapshot, history } from "./history.js";
 import { bakeShape, cancelShape, shapeToPreview, updateTextGlyph, textPreview, commitText, rasterizeMicro, rasterizeTTF, textLabel } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
 import { syncPresetToSize } from "./io.js";
+import { showToast } from "./toast.js";
 
 // ---------- Tools UI ----------
 const TOOLS=[
@@ -35,13 +36,31 @@ TOOLS.forEach(t=>{
   b.addEventListener("click",()=>setTool(t.id));
   rail.appendChild(b);
 });
+// options d'outil affichées dans la barre horizontale, selon l'outil actif
+const TOOL_OPT_GROUPS={
+  optBrush:  new Set(["pencil","eraser"]),
+  optFill:   new Set(["rect","ellipse","triangle","diamond","star","heart"]),
+  optStroke: new Set(["line","rect","ellipse","triangle","diamond","star","heart"]),
+  optMirror: new Set(["pencil","eraser","line","rect","ellipse","triangle","diamond","star","heart"]),
+  textOpts:  new Set(["text"]),
+};
+function updateToolOpts(id){
+  let anyShown=false;
+  for(const groupId in TOOL_OPT_GROUPS){
+    const shown=TOOL_OPT_GROUPS[groupId].has(id);
+    document.getElementById(groupId).hidden=!shown;
+    if(shown) anyShown=true;
+  }
+  document.getElementById("optEmpty").hidden=anyShown;
+}
+updateToolOpts(state.tool);
 export function setTool(id){
   if(state.activeShape) bakeShape();
   if(typeof state.textEditing!=="undefined" && state.textEditing && id!=="text") commitCanvasText();
   if(state.tool==="select" && id!=="select"){ commitFloat(); state.sel=null; }
   state.tool=id;
   [...rail.querySelectorAll(".tool")].forEach(el=>el.classList.toggle("active",el.dataset.tool===id));
-  document.getElementById("textOpts").hidden = id!=="text";
+  updateToolOpts(id);
   if(id!=="text" && state.previewCells){ state.previewCells=null; render(); }
   render();
 }
@@ -177,32 +196,95 @@ buildSwatches();
 const layersEl=document.getElementById("layers");
 let dragId=null;
 let _lastLayerClick={id:null,t:0};
-function clearDropMarks(){ [...layersEl.children].forEach(el=>el.classList.remove("drop-above","drop-below")); }
-function moveLayer(srcId,tgtId,above){
+function clearDropMarks(){ [...layersEl.children].forEach(el=>el.classList.remove("drop-above","drop-below","drop-into")); }
+// bloc contigu occupé par un calque (une seule case) ou par un dossier + ses membres (l'en-tête est au sommet visuel = index le plus haut)
+function blockOf(L){
+  const i=state.layers.indexOf(L);
+  if(!L.isGroup) return [i,i];
+  let lo=i;
+  while(lo-1>=0 && state.layers[lo-1].groupId===L.id) lo--;
+  return [lo,i];
+}
+function nearestNonGroupIndex(i){
+  if(!state.layers.length) return -1;
+  i=Math.max(0,Math.min(i,state.layers.length-1));
+  if(!state.layers[i].isGroup) return i;
+  for(let d=1; d<state.layers.length; d++){
+    if(i-d>=0 && !state.layers[i-d].isGroup) return i-d;
+    if(i+d<state.layers.length && !state.layers[i+d].isGroup) return i+d;
+  }
+  return -1;
+}
+function dropZone(e,row,tgtIsGroup,srcIsGroup){
+  const r=row.getBoundingClientRect(); const rel=(e.clientY-r.top)/r.height;
+  if(tgtIsGroup && !srcIsGroup){
+    if(rel<0.25) return "above"; if(rel>0.75) return "below"; return "into";
+  }
+  return rel<0.5 ? "above" : "below";
+}
+function moveLayer(srcId,tgtId,zone){
   if(srcId===tgtId) return;
+  const src=state.layers.find(l=>l.id===srcId), tgt=state.layers.find(l=>l.id===tgtId);
+  if(!src||!tgt) return;
+  if(src.isGroup && (tgt.groupId===src.id)) return;         // ne pas déposer un dossier dans son propre contenu
+  if(zone==="into" && (!tgt.isGroup || src.isGroup)) zone="below"; // sécurité si la zone n'est plus valide
   snapshot();
-  const activeId=state.layers[state.active].id;
-  let vis=state.layers.slice().reverse();                 // haut de pile -> bas
-  const s=vis.findIndex(l=>l.id===srcId); if(s<0) return;
-  const [moved]=vis.splice(s,1);
-  let t=vis.findIndex(l=>l.id===tgtId); if(t<0) t=vis.length; else t=above?t:t+1;
-  vis.splice(t,0,moved);
-  state.layers=vis.reverse();
-  state.active=state.layers.findIndex(l=>l.id===activeId);
+  const activeLayer=state.layers[state.active];
+  const [slo,shi]=blockOf(src);
+  const block=state.layers.splice(slo, shi-slo+1);
+  if(!src.isGroup) src.groupId = zone==="into" ? tgt.id : (tgt.groupId||null);
+  let tIdx=state.layers.indexOf(tgt);
+  const insertAt = zone==="above" ? tIdx+1 : tIdx;
+  state.layers.splice(insertAt,0,...block);
+  state.active=state.layers.indexOf(activeLayer);
   buildLayers(); render();
+}
+function layerRow(L,indent){
+  const row=document.createElement("div");
+  row.className="layer"+(indent?" grouped":"")+(state.layers.indexOf(L)===state.active?" active":"")+(L.img?" imglayer":"");
+  row.draggable=true; row.dataset.id=L.id;
+  const grip=document.createElement("span"); grip.className="grip"; grip.textContent="⠿"; grip.title="Glisser pour réordonner";
+  const vis=document.createElement("button");
+  vis.className="vis"+(L.visible?" on":""); vis.title="Visibilité";
+  vis.innerHTML=L.visible?'<svg width="16" height="16" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 4l16 16" stroke="currentColor" stroke-width="1.6"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".5"/></svg>';
+  vis.addEventListener("click",e=>{e.stopPropagation();L.visible=!L.visible;buildLayers();render();});
+  row.addEventListener("dragstart",e=>{ dragId=L.id; row.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",String(L.id));}catch(_){} });
+  row.addEventListener("dragend",()=>{ row.classList.remove("dragging"); clearDropMarks(); dragId=null; });
+  row.addEventListener("dragover",e=>{ if(dragId==null||dragId===L.id) return; e.preventDefault();
+    const zone=dropZone(e,row,!!L.isGroup, state.layers.find(l=>l.id===dragId)?.isGroup);
+    clearDropMarks(); row.classList.add(zone==="above"?"drop-above":zone==="below"?"drop-below":"drop-into"); });
+  row.addEventListener("dragleave",()=>row.classList.remove("drop-above","drop-below","drop-into"));
+  row.addEventListener("drop",e=>{ e.preventDefault();
+    const src=state.layers.find(l=>l.id===dragId);
+    const zone=dropZone(e,row,!!L.isGroup, src&&src.isGroup);
+    clearDropMarks(); if(dragId!=null) moveLayer(dragId,L.id,zone); dragId=null; });
+  return {row,grip,vis};
 }
 export function buildLayers(){
   layersEl.innerHTML="";
   for(let i=state.layers.length-1;i>=0;i--){            // haut de la fenêtre = haut de la pile
     const L=state.layers[i];
-    const row=document.createElement("div");
-    row.className="layer"+(i===state.active?" active":"")+(L.img?" imglayer":"");
-    row.draggable=true; row.dataset.id=L.id;
-    const grip=document.createElement("span"); grip.className="grip"; grip.textContent="⠿"; grip.title="Glisser pour réordonner";
-    const vis=document.createElement("button");
-    vis.className="vis"+(L.visible?" on":""); vis.title="Visibilité";
-    vis.innerHTML=L.visible?'<svg width="16" height="16" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 4l16 16" stroke="currentColor" stroke-width="1.6"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".5"/></svg>';
-    vis.addEventListener("click",e=>{e.stopPropagation();L.visible=!L.visible;buildLayers();render();});
+    if(L.groupId){ const g=groupOf(L.groupId); if(g && g.expanded===false) continue; }  // dossier replié : masquer ses membres
+    if(L.isGroup){
+      const {row,grip,vis}=layerRow(L,false);
+      row.classList.add("group");
+      const chev=document.createElement("button"); chev.className="chevron"; chev.title=L.expanded?"Replier":"Déplier";
+      chev.innerHTML=L.expanded?"▾":"▸";
+      chev.addEventListener("click",e=>{ e.stopPropagation(); L.expanded=!L.expanded; buildLayers(); });
+      const nm=document.createElement("input"); nm.className="nm"; nm.value=L.name;
+      nm.addEventListener("input",()=>L.name=nm.value);
+      nm.addEventListener("click",e=>e.stopPropagation());
+      nm.addEventListener("focus",()=>row.draggable=false);
+      nm.addEventListener("blur",()=>row.draggable=true);
+      const trash=document.createElement("button"); trash.className="trash"; trash.title="Supprimer le dossier et son contenu";
+      trash.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M6 7l1 12h10l1-12" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+      trash.addEventListener("click",e=>{ e.stopPropagation(); deleteGroup(L); });
+      row.append(grip,chev,vis,nm,trash);
+      row.addEventListener("click",()=>{ L.expanded=!L.expanded; buildLayers(); });
+      layersEl.appendChild(row);
+      continue;
+    }
+    const {row,grip,vis}=layerRow(L,!!L.groupId);
     const thumb=document.createElement("canvas"); thumb.className="thumb"; thumb.width=state.W; thumb.height=state.H;
     thumb._layer=L;
     const col=document.createElement("div"); col.className="lcol";
@@ -223,11 +305,6 @@ export function buildLayers(){
       const now=Date.now();
       if(_lastLayerClick.id===L.id && now-_lastLayerClick.t<350){ _lastLayerClick={id:null,t:0}; buildLayers(); openFxModal(L); return; }
       _lastLayerClick={id:L.id,t:now}; buildLayers(); });
-    row.addEventListener("dragstart",e=>{ dragId=L.id; row.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",String(L.id));}catch(_){} });
-    row.addEventListener("dragend",()=>{ row.classList.remove("dragging"); clearDropMarks(); dragId=null; });
-    row.addEventListener("dragover",e=>{ if(dragId==null) return; e.preventDefault(); const r=row.getBoundingClientRect(); const above=(e.clientY-r.top)<r.height/2; clearDropMarks(); row.classList.add(above?"drop-above":"drop-below"); });
-    row.addEventListener("dragleave",()=>row.classList.remove("drop-above","drop-below"));
-    row.addEventListener("drop",e=>{ e.preventDefault(); const r=row.getBoundingClientRect(); const above=(e.clientY-r.top)<r.height/2; clearDropMarks(); if(dragId!=null) moveLayer(dragId,L.id,above); dragId=null; });
     layersEl.appendChild(row);
   }
   refreshThumbs();
@@ -250,18 +327,36 @@ export function refreshThumbs(){
     ctx.putImageData(im,0,0);
   });
 }
-function addLayerAction(){ snapshot(); state.layers.splice(state.active+1,0,newLayer("Calque "+state.layerSeq)); state.active++; buildLayers(); render(); }
+function addLayerAction(){ snapshot(); const L=newLayer("Calque "+state.layerSeq); L.groupId=state.layers[state.active].groupId||null;
+  state.layers.splice(state.active+1,0,L); state.active++; buildLayers(); render(); }
 function duplicateLayer(i){ if(i<0||i>=state.layers.length) return; snapshot(); const src=state.layers[i];
   const c=src.img ? newImageLayer(src.img.dataURL, src.name+" copie")
                   : {...src,id:state.layerSeq++,name:src.name+" copie",data:src.data.slice(),text:src.text?{...src.text}:null,fx:src.fx?JSON.parse(JSON.stringify(src.fx)):null};
   if(!src.img) c.opacity=src.opacity;
+  c.groupId=src.groupId||null;
   state.layers.splice(i+1,0,c); state.active=i+1; buildLayers(); render(); }
-function doDeleteLayer(i){ if(i<0||i>=state.layers.length||state.layers.length<=1) return;
+function doDeleteLayer(i){ if(i<0||i>=state.layers.length||state.layers.filter(L=>!L.isGroup).length<=1) return;
   snapshot(); state.layers.splice(i,1);
   state.active = state.active>i ? state.active-1 : (state.active===i ? Math.max(0,i-1) : state.active);
-  state.active=Math.min(state.active,state.layers.length-1); buildLayers(); render(); }
-function deleteLayer(i){ if(i<0||i>=state.layers.length||state.layers.length<=1) return;
+  state.active=nearestNonGroupIndex(Math.min(state.active,state.layers.length-1)); buildLayers(); render(); }
+function deleteLayer(i){ if(i<0||i>=state.layers.length||state.layers.filter(L=>!L.isGroup).length<=1) return;
   const L=state.layers[i]; askConfirm("Supprimer ce calque ?", ()=>{ const j=state.layers.indexOf(L); if(j>=0) doDeleteLayer(j); }); }
+function addGroupAction(){ snapshot(); const g=newGroup("Dossier "+state.layerSeq);
+  state.layers.splice(state.active+1,0,g); buildLayers(); render(); }
+function deleteGroup(g){
+  askConfirm("Supprimer le dossier et son contenu ?", ()=>{
+    const members=state.layers.filter(L=>L.groupId===g.id);
+    if(members.length && state.layers.filter(L=>!L.isGroup && !members.includes(L)).length<1){
+      showToast("Impossible : il doit rester au moins un calque.",{type:"error"}); return;
+    }
+    snapshot();
+    const activeLayer=state.layers[state.active];
+    state.layers=state.layers.filter(L=>L!==g && L.groupId!==g.id);
+    let ni=state.layers.indexOf(activeLayer);
+    state.active = ni>=0 ? ni : nearestNonGroupIndex(Math.min(state.active,state.layers.length-1));
+    buildLayers(); render();
+  });
+}
 // ---------- Modale de confirmation ----------
 let _confirmYes=null;
 function askConfirm(msg, onYes){
@@ -290,18 +385,21 @@ function makeLayerDrop(btn, action){
   btn.addEventListener("drop",e=>{ e.preventDefault(); btn.classList.remove("drop-hot");
     const id=dragId; dragId=null; const i=state.layers.findIndex(L=>L.id===id); if(i>=0) action(i); });
 }
-makeLayerDrop(document.getElementById("addLayerBtn"), duplicateLayer);
-makeLayerDrop(document.getElementById("delLayerBtn"), deleteLayer);
+document.getElementById("addGroup").onclick=addGroupAction;
+document.getElementById("addGroupBtn").onclick=addGroupAction;
+makeLayerDrop(document.getElementById("addLayerBtn"), i=>{ const L=state.layers[i]; if(!L||L.isGroup) return; duplicateLayer(i); });
+makeLayerDrop(document.getElementById("delLayerBtn"), i=>{ const L=state.layers[i]; if(!L) return; if(L.isGroup) deleteGroup(L); else deleteLayer(i); });
 document.getElementById("clearLayer").onclick=()=>{ if(state.layers[state.active].img) return; snapshot(); state.layers[state.active].data.fill(null); state.layers[state.active].ox=0; state.layers[state.active].oy=0; render(); buildLayers(); };
 document.getElementById("mergeLayer").onclick=()=>{ if(state.activeShape) bakeShape();
-  if(state.active<=0){ setHint("Aucun calque en dessous où fusionner."); return; }
-  const A=state.layers[state.active], B=state.layers[state.active-1];
-  if(A.img||B.img){ alert("La fusion ne concerne que les calques de dessin (pas les calques image)."); return; }
+  let bi=state.active-1; while(bi>=0 && state.layers[bi].isGroup) bi--;
+  if(bi<0){ setHint("Aucun calque en dessous où fusionner."); return; }
+  const A=state.layers[state.active], B=state.layers[bi];
+  if(A.img||B.img){ showToast("La fusion ne concerne que les calques de dessin (pas les calques image).",{type:"warn"}); return; }
   snapshot();
   for(let i=0;i<B.data.length;i++){ if(A.data[i]!==null) B.data[i]=A.data[i]; } // A par-dessus B
-  state.layers.splice(state.active,1); state.active=state.active-1; buildLayers(); render(); };
+  state.layers.splice(state.active,1); state.active=bi; buildLayers(); render(); };
 document.getElementById("flattenLayers").onclick=()=>{ if(state.activeShape) bakeShape();
-  if(state.layers.filter(L=>!L.img).length<2){ setHint("Rien à aplatir."); return; }
+  if(state.layers.filter(L=>!L.img&&!L.isGroup).length<2){ setHint("Rien à aplatir."); return; }
   if(prefs.confirm && !confirm("Aplatir tous les calques de dessin visibles en un seul ? (opacités fusionnées ; calques image conservés)")) return;
   snapshot();
   const img=compositeLayers(state.layers).data;      // compositing correct : opacité + mélange des couleurs
@@ -309,7 +407,7 @@ document.getElementById("flattenLayers").onclick=()=>{ if(state.activeShape) bak
   for(let i=0;i<state.W*state.H;i++){ const a=img[i*4+3]; if(a<128) continue;
     merged[i]="#"+[img[i*4],img[i*4+1],img[i*4+2]].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); }
   const flat=newLayer("Aplati"); flat.data=merged;
-  const firstPx=state.layers.findIndex(L=>!L.img);
+  const firstPx=state.layers.findIndex(L=>!L.img&&!L.isGroup);
   const rebuilt=[];
   state.layers.forEach((L,i)=>{ if(L.img) rebuilt.push(L); else if(i===firstPx) rebuilt.push(flat); });
   state.layers=rebuilt; state.active=state.layers.indexOf(flat); buildLayers(); render(); };

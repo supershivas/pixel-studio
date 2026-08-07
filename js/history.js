@@ -4,6 +4,8 @@ import { render } from "./helpers.js";
 
 // ---------- History ----------
 export const history = [];   // snapshots
+const snapshotListeners = [];
+export function onSnapshot(fn){ snapshotListeners.push(fn); }
 
 export function snapshot(){
   const snap = { active: state.active, layers: state.layers.map(L=>({...L,data:L.data?L.data.slice():null,fx:L.fx?JSON.parse(JSON.stringify(L.fx)):null,text:L.text?{...L.text}:null})) };
@@ -11,6 +13,7 @@ export function snapshot(){
   history.push(snap);
   if(history.length>state.HIST_MAX) history.shift();
   state.histPtr = history.length-1;
+  for(const fn of snapshotListeners) fn();
 }
 export function restore(snap){
   state.active = Math.min(snap.active, snap.layers.length-1);

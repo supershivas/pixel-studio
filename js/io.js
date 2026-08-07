@@ -1,9 +1,10 @@
 import { state } from "./state.js";
 import { compositeLayers, newLayer, newImageLayer, render } from "./helpers.js";
-import { snapshot, history } from "./history.js";
+import { snapshot, history, onSnapshot } from "./history.js";
 import { bakeShape } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
 import { buildLayers, buildSwatches, presetSel, PRESETS } from "./ui.js";
+import { showToast } from "./toast.js";
 
 // ---------- Export ----------
 function flattenCanvas(ls,scale,opaque){
@@ -42,11 +43,14 @@ function stamp2(){ return new Date().toISOString().slice(0,10); }
 function safeName(s){ return (s||"").trim().replace(/[^\w\-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"carte"; }
 
 document.getElementById("expPNG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download(flattenCanvas(state.layers,s,false).toDataURL("image/png"),`pixel_${state.W}x${state.H}_x${s}.png`); };
+  download(flattenCanvas(state.layers,s,false).toDataURL("image/png"),`pixel_${state.W}x${state.H}_x${s}.png`);
+  showToast("PNG exporté.",{type:"success"}); };
 document.getElementById("expJPG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download(flattenCanvas(state.layers,s,true).toDataURL("image/jpeg",0.95),`pixel_${state.W}x${state.H}_x${s}.jpg`); };
+  download(flattenCanvas(state.layers,s,true).toDataURL("image/jpeg",0.95),`pixel_${state.W}x${state.H}_x${s}.jpg`);
+  showToast("JPG exporté.",{type:"success"}); };
 document.getElementById("expSVG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svgString(state.layers,s)),`pixel_${state.W}x${state.H}.svg`); };
+  download("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svgString(state.layers,s)),`pixel_${state.W}x${state.H}.svg`);
+  showToast("SVG exporté.",{type:"success"}); };
 
 // ---------- Export groupé (ZIP store, sans dépendance) ----------
 const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
@@ -74,7 +78,7 @@ function normCards(proj){
   return [];
 }
 function projLayers(rawLayers,w,h){
-  return rawLayers.map(L=>({ visible:L.visible!==false, opacity:typeof L.opacity==="number"?L.opacity:1,
+  return rawLayers.filter(L=>!L.isGroup).map(L=>({ visible:L.visible!==false, opacity:typeof L.opacity==="number"?L.opacity:1,
     img: L.img?{}:null, data:(Array.isArray(L.data)&&L.data.length===w*h)?L.data:null, ox:L.ox||0, oy:L.oy||0 }));
 }
 let _batchFmt="svg";
@@ -105,30 +109,38 @@ document.getElementById("batchFiles").onchange=async e=>{
       }
     }
     state.W=savedW; state.H=savedH;
-    if(!out.length) alert("Aucune carte exploitable dans les fichiers .eu-pix sélectionnés.");
-    else { const url=URL.createObjectURL(zipStore(out)); download(url,`lot_${out.length}images_${stamp2()}.zip`); setTimeout(()=>URL.revokeObjectURL(url),6000); }
-  }catch(err){ state.W=savedW; state.H=savedH; alert("Export impossible : "+err.message); }
+    if(!out.length) showToast("Aucune carte exploitable dans les fichiers .eu-pix sélectionnés.",{type:"error"});
+    else { const url=URL.createObjectURL(zipStore(out)); download(url,`lot_${out.length}images_${stamp2()}.zip`); setTimeout(()=>URL.revokeObjectURL(url),6000);
+      showToast(`Lot exporté (${out.length} fichier${out.length>1?"s":""}).`,{type:"success"}); }
+  }catch(err){ state.W=savedW; state.H=savedH; showToast("Export impossible : "+err.message,{type:"error"}); }
   finally{ busy.hidden=true; busy.textContent="Export en cours…"; document.body.style.cursor=""; render(); }
 };
 
 // ---------- Projet .eu-pix ----------
-document.getElementById("saveProj").onclick=()=>{
+export function buildProjectObject(){
   if(state.activeShape) bakeShape();
-  const proj={ format:"pixel", version:3, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors,
+  return { format:"pixel", version:4, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
     layers:state.layers.map(L=>({ name:L.name, visible:L.visible, opacity:L.opacity,
-      data:L.img?null:L.data, img:L.img?{dataURL:L.img.dataURL}:null, ox:L.ox||0, oy:L.oy||0, text:L.text||null, fx:L.fx||null, blend:L.blend||"normal" })) };
+      data:L.img||L.isGroup?null:L.data, img:L.img?{dataURL:L.img.dataURL}:null, ox:L.ox||0, oy:L.oy||0,
+      text:L.text||null, fx:L.fx||null, blend:L.blend||"normal",
+      isGroup:!!L.isGroup, expanded:L.isGroup?(L.expanded!==false):undefined,
+      group: L.groupId ? state.layers.findIndex(x=>x.id===L.groupId) : null })) };
+}
+document.getElementById("saveProj").onclick=()=>{
+  const proj=buildProjectObject();
   const blob=new Blob([JSON.stringify(proj)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   download(url,`pixel_${state.W}x${state.H}_${stamp2()}.pixel`);
   setTimeout(()=>URL.revokeObjectURL(url),3000);
+  showToast("Projet enregistré.",{type:"success"});
 };
 document.getElementById("openProj").onclick=()=>document.getElementById("fileInput").click();
 document.getElementById("fileInput").onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   const rd=new FileReader();
-  rd.onload=()=>{ try{ loadProject(JSON.parse(rd.result)); }
-    catch(err){ alert("Fichier .eu-pix illisible : "+err.message); } };
-  rd.onerror=()=>alert("Lecture du fichier impossible.");
+  rd.onload=()=>{ try{ loadProject(JSON.parse(rd.result)); showToast("Projet chargé.",{type:"success"}); }
+    catch(err){ showToast("Fichier .eu-pix illisible : "+err.message,{type:"error"}); } };
+  rd.onerror=()=>showToast("Lecture du fichier impossible.",{type:"error"});
   rd.readAsText(f);
   e.target.value="";
 };
@@ -150,16 +162,41 @@ export function loadProject(p){
   else if(Array.isArray(p.layers)){ raw=p.layers; act=p.active|0; }
   else throw new Error("aucun calque");
   state.layers=raw.map(L=>{
+    if(L.isGroup) return { id:state.layerSeq++, isGroup:true, name:L.name||"Dossier", visible:L.visible!==false, expanded:L.expanded!==false };
     if(L.img && L.img.dataURL){ const IL=newImageLayer(L.img.dataURL, L.name||"Image");
       IL.visible=L.visible!==false; if(typeof L.opacity==="number") IL.opacity=L.opacity; IL.ox=L.ox||0; IL.oy=L.oy||0; IL.blend=L.blend||"normal"; return IL; }
     return { id:state.layerSeq++, name:L.name||"Calque", visible:L.visible!==false,
       opacity:typeof L.opacity==="number"?L.opacity:1,
       data:(Array.isArray(L.data)&&L.data.length===state.W*state.H)?L.data.slice():new Array(state.W*state.H).fill(null), img:null,_imgEl:null, ox:L.ox||0, oy:L.oy||0, text:L.text||null, fx:L.fx||null, blend:L.blend||"normal" };
   });
+  raw.forEach((L,i)=>{ if(typeof L.group==="number" && raw[L.group] && raw[L.group].isGroup) state.layers[i].groupId=state.layers[L.group].id; });
   if(!state.layers.length) state.layers=[newLayer("Calque 1")];
   state.active=Math.min(Math.max(0,act),state.layers.length-1);
+  while(state.active<state.layers.length-1 && state.layers[state.active].isGroup) state.active++;
+  while(state.active>0 && state.layers[state.active].isGroup) state.active--;
   syncPresetToSize();
   history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();
   if(Array.isArray(p.cards) && p.cards.length>1) setHint("Fichier multi-cartes : 1re carte ouverte (l'export par lot les traite toutes).");
+}
+
+// ---------- Sauvegarde automatique (localStorage) ----------
+const AUTOSAVE_KEY="eupix.autosave";
+let autosaveTimer=null;
+export function scheduleAutosave(){
+  clearTimeout(autosaveTimer);
+  autosaveTimer=setTimeout(()=>{
+    try{ localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(buildProjectObject())); }catch(_){}
+  }, 800);
+}
+export function restoreAutosaveIfAny(){
+  let raw; try{ raw=localStorage.getItem(AUTOSAVE_KEY); }catch(_){ return; }
+  if(!raw) return;
+  let proj; try{ proj=JSON.parse(raw); }catch(_){ return; }
+  if(!proj || !Array.isArray(proj.layers) || !proj.layers.length) return;
+  showToast("Un dessin précédent a été trouvé sur cet appareil.",{ type:"info", duration:12000,
+    actionLabel:"Restaurer", onAction:()=>{
+      try{ loadProject(proj); showToast("Dessin restauré.",{type:"success"}); }
+      catch(err){ showToast("Restauration impossible : "+err.message,{type:"error"}); }
+    } });
 }

@@ -120,7 +120,7 @@ document.getElementById("batchFiles").onchange=async e=>{
 export function buildProjectObject(){
   if(state.activeShape) bakeShape();
   return { format:"pixel", version:4, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
-    layers:state.layers.map(L=>({ name:L.name, visible:L.visible, opacity:L.opacity,
+    layers:state.layers.map(L=>({ name:L.name, visible:L.visible, opacity:L.opacity, locked:!!L.locked,
       data:L.img||L.isGroup?null:L.data, img:L.img?{dataURL:L.img.dataURL}:null, ox:L.ox||0, oy:L.oy||0,
       text:L.text||null, fx:L.fx||null, blend:L.blend||"normal",
       isGroup:!!L.isGroup, expanded:L.isGroup?(L.expanded!==false):undefined,
@@ -164,9 +164,9 @@ export function loadProject(p){
   state.layers=raw.map(L=>{
     if(L.isGroup) return { id:state.layerSeq++, isGroup:true, name:L.name||"Dossier", visible:L.visible!==false, expanded:L.expanded!==false };
     if(L.img && L.img.dataURL){ const IL=newImageLayer(L.img.dataURL, L.name||"Image");
-      IL.visible=L.visible!==false; if(typeof L.opacity==="number") IL.opacity=L.opacity; IL.ox=L.ox||0; IL.oy=L.oy||0; IL.blend=L.blend||"normal"; return IL; }
+      IL.visible=L.visible!==false; if(typeof L.opacity==="number") IL.opacity=L.opacity; IL.ox=L.ox||0; IL.oy=L.oy||0; IL.blend=L.blend||"normal"; IL.locked=!!L.locked; return IL; }
     return { id:state.layerSeq++, name:L.name||"Calque", visible:L.visible!==false,
-      opacity:typeof L.opacity==="number"?L.opacity:1,
+      opacity:typeof L.opacity==="number"?L.opacity:1, locked:!!L.locked,
       data:(Array.isArray(L.data)&&L.data.length===state.W*state.H)?L.data.slice():new Array(state.W*state.H).fill(null), img:null,_imgEl:null, ox:L.ox||0, oy:L.oy||0, text:L.text||null, fx:L.fx||null, blend:L.blend||"normal" };
   });
   raw.forEach((L,i)=>{ if(typeof L.group==="number" && raw[L.group] && raw[L.group].isGroup) state.layers[i].groupId=state.layers[L.group].id; });

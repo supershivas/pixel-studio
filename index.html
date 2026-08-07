@@ -73,6 +73,9 @@
   .busy{font:12px var(--mono);color:var(--accent);margin-left:8px}
 
   .modal-backdrop{position:fixed;inset:0;background:rgba(6,10,20,.6);backdrop-filter:blur(2px);z-index:100;display:none;place-items:center}
+  /* pas d'assombrissement pour les Options du calque : on doit voir le rendu live derrière */
+  #fxModal.modal-backdrop{background:transparent;backdrop-filter:none}
+  #fxModal .modal{box-shadow:0 24px 60px rgba(0,0,0,.75),0 0 0 1px var(--line)}
   .modal-backdrop.open{display:grid}
   .modal{width:min(460px,92vw);max-height:86vh;overflow-y:auto;background:var(--panel);
     border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
@@ -219,6 +222,8 @@
   .ltool.drop-hot{border-style:solid;border-color:var(--accent);color:var(--accent);background:#243668}
   #delLayerBtn.drop-hot{border-color:var(--danger);color:var(--danger);background:#3a1f2b}
   .layer.active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .layer .lockbadge{font-size:10px;border-color:var(--ink-dim);color:var(--ink-dim)}
+  .layer.solo{border-color:var(--accent-blue);box-shadow:inset 0 0 0 1px var(--accent-blue)}
   .layer .vis{width:22px;height:22px;display:grid;place-items:center;border:none;background:transparent;padding:0;color:var(--ink-dim)}
   .layer .vis.on{color:var(--accent)}
   .layer .nm{flex:1;background:transparent;border:none;color:var(--ink);font-size:12px;padding:2px 0;min-width:0}
@@ -500,8 +505,21 @@
         </select></div>
       <div class="pref"><div class="lbl">Opacité</div>
         <input type="range" id="fxOpacity" min="0" max="100" value="100"></div>
+      <div class="pref"><div class="lbl">Verrouiller<small>Empêche toute modification du contenu</small></div>
+        <label class="switch"><input type="checkbox" id="fxLock"><span class="sl"></span></label></div>
+      <div class="pref"><div class="lbl">Isoler<small>Masque temporairement les autres calques (vue seulement)</small></div>
+        <label class="switch"><input type="checkbox" id="fxSolo"><span class="sl"></span></label></div>
       <div class="pref"><div class="lbl">Couleur<small>Recolore tout le calque (texte inclus)</small></div>
         <button class="fxsw" id="fxColor" title="Choisir la couleur"></button></div>
+
+      <div class="fx-group">
+        <h3>Miroir</h3>
+        <div class="pref"><div class="lbl">Retourner le contenu<small>De ce calque uniquement</small></div>
+          <div style="display:flex;gap:8px">
+            <button class="mini" id="fxMirrorH">Horizontal</button>
+            <button class="mini" id="fxMirrorV">Vertical</button>
+          </div></div>
+      </div>
 
       <div class="fx-group">
         <h3>Contour</h3>

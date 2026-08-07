@@ -1,5 +1,5 @@
 import { state, PALETTE, stage, APP_VERSION } from "./state.js";
-import { render, commitFloat, bakeOffset, idx, inBounds, layerPixels, hexToRgb, compositeLayers, newLayer, newImageLayer, newGroup, groupOf, effVisible } from "./helpers.js";
+import { render, commitFloat, bakeOffset, idx, inBounds, layerPixels, hexToRgb, compositeLayers, newLayer, newImageLayer, newGroup, groupOf, effVisible, isSolo, setSolo } from "./helpers.js";
 import { snapshot, history } from "./history.js";
 import { bakeShape, cancelShape, shapeToPreview, updateTextGlyph, textPreview, commitText, rasterizeMicro, rasterizeTTF, textLabel } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
@@ -162,8 +162,11 @@ function openFxModal(L){
   fxLayer=L; const isImg=!!L.img; const fx=ensureFx(L);
   document.getElementById("fxBlend").value=L.blend||"normal";
   document.getElementById("fxOpacity").value=Math.round(L.opacity*100);
+  document.getElementById("fxLock").checked=!!L.locked;
+  document.getElementById("fxSolo").checked=isSolo(L.id);
   ["fxColor","fxStrokeOn","fxStrokeW","fxStrokeColor","fxShadowOn","fxShadowDX","fxShadowDY","fxShadowColor","fxResetBtn"]
-    .forEach(id=>{ document.getElementById(id).disabled=isImg; });
+    .forEach(id=>{ document.getElementById(id).disabled=isImg||L.locked; });
+  ["fxMirrorH","fxMirrorV"].forEach(id=>{ document.getElementById(id).disabled=isImg||!!L.text||L.locked; });
   document.getElementById("fxColor").style.background=(L.text&&L.text.color)||state.color;
   document.getElementById("fxStrokeOn").checked=fx.stroke.on;
   document.getElementById("fxStrokeW").value=fx.stroke.width;
@@ -176,6 +179,22 @@ function openFxModal(L){
 }
 document.getElementById("fxBlend").onchange=e=>{ if(fxLayer){ fxLayer.blend=e.target.value; fxApply(); } };
 document.getElementById("fxOpacity").oninput=e=>{ if(fxLayer){ fxLayer.opacity=+e.target.value/100; fxApply(); } };
+document.getElementById("fxLock").onchange=e=>{ if(fxLayer){ fxLayer.locked=e.target.checked; openFxModal(fxLayer); fxApply(); } };
+document.getElementById("fxSolo").onchange=e=>{ if(fxLayer){ setSolo(fxLayer.id); render(); buildLayers(); } };
+function mirrorLayerData(L,axis){
+  if(!L || L.img || L.text || L.locked) return;
+  snapshot(); bakeOffset(L);
+  const nd=new Array(state.W*state.H).fill(null);
+  for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){
+    const v=L.data[y*state.W+x]; if(v===null) continue;
+    const nx = axis==="h" ? (state.W-1-x) : x;
+    const ny = axis==="v" ? (state.H-1-y) : y;
+    nd[ny*state.W+nx]=v;
+  }
+  L.data=nd; state.thumbsDirty=true; buildLayers(); render();
+}
+document.getElementById("fxMirrorH").onclick=()=>mirrorLayerData(fxLayer,"h");
+document.getElementById("fxMirrorV").onclick=()=>mirrorLayerData(fxLayer,"v");
 const _fx=()=>fxLayer?ensureFx(fxLayer):null;
 document.getElementById("fxColor").onclick=()=>{ if(!fxLayer) return; openColorPicker(document.getElementById("fxColor"), (fxLayer.text&&fxLayer.text.color)||state.color, hex=>{ recolorLayer(fxLayer,hex); document.getElementById("fxColor").style.background=hex; }); };
 document.getElementById("fxStrokeOn").onchange=e=>{ const f=_fx(); if(f){ f.stroke.on=e.target.checked; fxApply(); } };
@@ -286,6 +305,8 @@ export function buildLayers(){
       continue;
     }
     const {row,grip,vis}=layerRow(L,!!L.groupId);
+    if(L.locked) row.classList.add("locked");
+    if(isSolo(L.id)) row.classList.add("solo");
     const thumb=document.createElement("canvas"); thumb.className="thumb"; thumb.width=state.W; thumb.height=state.H;
     thumb._layer=L;
     const col=document.createElement("div"); col.className="lcol";
@@ -295,10 +316,12 @@ export function buildLayers(){
     nm.addEventListener("focus",()=>row.draggable=false);
     nm.addEventListener("blur",()=>row.draggable=true);
     col.append(nm);
-    const opts=document.createElement("button"); opts.className="lopts"; opts.title="Options du calque (opacité, fusion, contour, ombre…)";
+    const badges=[];
+    if(L.img){ const b=document.createElement("span"); b.className="imgbadge"; b.textContent="IMG"; b.title="Calque image (référence, non exporté)"; badges.push(b); }
+    if(L.locked){ const b=document.createElement("span"); b.className="imgbadge lockbadge"; b.textContent="🔒"; b.title="Calque verrouillé"; badges.push(b); }
+    const opts=document.createElement("button"); opts.className="lopts"; opts.title="Options du calque (opacité, fusion, verrouillage, isolation, contour, ombre…)";
     opts.textContent="⚙"; opts.addEventListener("click",e=>{ e.stopPropagation(); openFxModal(L); });
-    if(L.img){ const b=document.createElement("span"); b.className="imgbadge"; b.textContent="IMG"; b.title="Calque image (référence, non exporté)"; row.append(grip,vis,thumb,col,b,opts); }
-    else row.append(grip,vis,thumb,col,opts);
+    row.append(grip,vis,thumb,col,...badges,opts);
     row.addEventListener("click",()=>{ if(state.activeShape) bakeShape(); if(state.floatSel) commitFloat(); const ni=state.layers.indexOf(L); if(ni>=0) state.active=ni; buildLayers(); });
     layersEl.appendChild(row);
   }
@@ -328,6 +351,7 @@ function duplicateLayer(i){ if(i<0||i>=state.layers.length) return; snapshot(); 
   const c=src.img ? newImageLayer(src.img.dataURL, src.name+" copie")
                   : {...src,id:state.layerSeq++,name:src.name+" copie",data:src.data.slice(),text:src.text?{...src.text}:null,fx:src.fx?JSON.parse(JSON.stringify(src.fx)):null};
   if(!src.img) c.opacity=src.opacity;
+  c.locked=src.locked||false;
   c.groupId=src.groupId||null;
   state.layers.splice(i+1,0,c); state.active=i+1; buildLayers(); render(); }
 function doDeleteLayer(i){ if(i<0||i>=state.layers.length||state.layers.filter(L=>!L.isGroup).length<=1) return;
@@ -385,7 +409,9 @@ document.getElementById("addGroup").onclick=addGroupAction;
 document.getElementById("addGroupBtn").onclick=addGroupAction;
 makeLayerDrop(document.getElementById("addLayerBtn"), i=>{ const L=state.layers[i]; if(!L||L.isGroup) return; duplicateLayer(i); });
 makeLayerDrop(document.getElementById("delLayerBtn"), i=>{ const L=state.layers[i]; if(!L) return; if(L.isGroup) deleteGroup(L); else deleteLayer(i); });
-document.getElementById("clearLayer").onclick=()=>{ if(state.layers[state.active].img) return; snapshot(); state.layers[state.active].data.fill(null); state.layers[state.active].ox=0; state.layers[state.active].oy=0; render(); buildLayers(); };
+document.getElementById("clearLayer").onclick=()=>{ const L=state.layers[state.active]; if(L.img) return;
+  if(L.locked){ showToast("Calque verrouillé — déverrouille-le dans ses options (⚙).",{type:"warn"}); return; }
+  snapshot(); L.data.fill(null); L.ox=0; L.oy=0; render(); buildLayers(); };
 document.getElementById("mergeLayer").onclick=()=>{ if(state.activeShape) bakeShape();
   let bi=state.active-1; while(bi>=0 && state.layers[bi].isGroup) bi--;
   if(bi<0){ setHint("Aucun calque en dessous où fusionner."); return; }

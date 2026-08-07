@@ -35,6 +35,7 @@ view.addEventListener("pointerdown",e=>{
       state.txStart={gx:x+0.5,gy:y+0.5,cx:state.activeShape.cx,cy:state.activeShape.cy}; return; }
     bakeShape(); // clic hors du cadre => on transpose, puis on peut recommencer
   }
+  if(state.layers[state.active].locked && state.tool!=="eyedropper"){ setHint("Calque verrouillé — déverrouille-le dans ses options (⚙)"); return; }
   if(!inBounds(x,y)) return;
   startX=x;startY=y;lastX=x;lastY=y;
 

@@ -307,6 +307,7 @@ export function enterLayerTransform(){
   commitFloat(); state.sel=null;
   const L=state.layers[state.active];
   if(L.img){ showToast("« Transformer » s'applique aux calques de dessin, pas aux calques image.",{type:"warn"}); return; }
+  if(L.locked){ showToast("Calque verrouillé — déverrouille-le dans ses options (⚙).",{type:"warn"}); return; }
   if(!L.data.some(v=>v!==null)){ setHint("Calque vide : rien à transformer."); return; }
   snapshot();
   bakeOffset(L);

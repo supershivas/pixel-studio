@@ -10,7 +10,7 @@ export const inBounds = (x,y)=> x>=0 && y>=0 && x<state.W && y<state.H;
 export function hexToRgb(h){ h=h.replace("#",""); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
 
 export function newLayer(name){
-  return { id: state.layerSeq++, name: name||("Calque "+state.layerSeq), visible:true, opacity:1, data:new Array(state.W*state.H).fill(null), img:null, _imgEl:null, ox:0, oy:0, blend:"normal" };
+  return { id: state.layerSeq++, name: name||("Calque "+state.layerSeq), visible:true, opacity:1, locked:false, data:new Array(state.W*state.H).fill(null), img:null, _imgEl:null, ox:0, oy:0, blend:"normal" };
 }
 // accès au contenu d'un calque en coordonnées canevas (le décalage ox/oy préserve le hors-cadre)
 export function layerAt(L,gx,gy){ const dx=gx-(L.ox||0), dy=gy-(L.oy||0); if(dx<0||dy<0||dx>=state.W||dy>=state.H) return null; return L.data[dy*state.W+dx]; }
@@ -21,7 +21,7 @@ export function bakeOffset(L){ if(L.img || ((L.ox||0)===0 && (L.oy||0)===0)) ret
   if(L.text){ L.text.ax+=(L.ox||0); L.text.ay+=(L.oy||0); }
   L.data=nd; L.ox=0; L.oy=0; }
 export function newImageLayer(dataURL,name){
-  const L={ id: state.layerSeq++, name: name||"Image", visible:true, opacity:0.6, data:null, img:{dataURL}, _imgEl:null, ox:0, oy:0, blend:"normal" };
+  const L={ id: state.layerSeq++, name: name||"Image", visible:true, opacity:0.6, locked:false, data:null, img:{dataURL}, _imgEl:null, ox:0, oy:0, blend:"normal" };
   const im=new Image(); im.onload=()=>{ L._imgEl=im; render(); buildLayers(); }; im.src=dataURL; L._imgEl=im;
   return L;
 }
@@ -31,8 +31,17 @@ export function newGroup(name){
   return { id: state.layerSeq++, isGroup:true, name: name||"Dossier", visible:true, expanded:true };
 }
 export function groupOf(id){ return id ? state.layers.find(L=>L.isGroup && L.id===id) : null; }
+
+// ---------- Isolation (solo) — vue seulement, jamais sauvegardée ----------
+let soloId=null;
+export function isSolo(id){ return soloId===id; }
+export function setSolo(id){ soloId = (soloId===id) ? null : id; }
+export function clearStaleSolo(){ if(soloId!=null && !state.layers.some(L=>L.id===soloId)) soloId=null; }
+
 // visibilité effective : un calque dans un dossier masqué est invisible même si sa propre visibilité est active
-export function effVisible(L){ if(!L.visible) return false;
+export function effVisible(L){
+  if(soloId!=null) return L.id===soloId;
+  if(!L.visible) return false;
   if(L.groupId){ const g=groupOf(L.groupId); if(g && !g.visible) return false; }
   return true; }
 
@@ -121,6 +130,7 @@ export function ensureChecker(){
   else { chctx.fillStyle="#1e2b45"; chctx.fillRect(0,0,state.W*state.zoom,state.H*state.zoom); }
 }
 export function render(){
+  clearStaleSolo();
   view.width = state.W*state.zoom; view.height = state.H*state.zoom;
   vctx.imageSmoothingEnabled=false;
   ensureChecker(); vctx.drawImage(checkerCv,0,0);

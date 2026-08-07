@@ -287,38 +287,32 @@
         <button class="menu-item" id="miImportImg" data-close>Importer une image (calque)…</button>
         <input type="file" id="imgFile" accept="image/*" hidden>
         <div class="menu-sep"></div>
-        <div class="menu-label">Exporter un lot (.pixel → .zip)</div>
-        <button class="menu-item" id="miBatchSVG" data-close>Choisir des fichiers → SVG</button>
-        <button class="menu-item" id="miBatchPNG" data-close>Choisir des fichiers → PNG</button>
-        <button class="menu-item" id="miBatchJPG" data-close>Choisir des fichiers → JPG</button>
-        <input type="file" id="batchFiles" accept=".pixel,.eu-pix,application/json" multiple hidden>
-      </div>
-    </div>
-    <div class="menu-root">
-      <button class="menu-btn" data-menu="export">Exporter</button>
-      <div class="menu" id="menu-export">
+        <div class="menu-label">Exporter</div>
         <div class="menu-field"><span>Échelle d'export</span> ×<input type="number" id="expScale" min="1" max="30" value="15"></div>
-        <div class="menu-sep"></div>
-        <div class="menu-label">Carte courante</div>
         <button class="menu-item" id="expSVG" data-close>SVG (impression)</button>
         <button class="menu-item" id="expPNG" data-close>PNG</button>
         <button class="menu-item" id="expJPG" data-close>JPG (sRGB)</button>
+        <div class="menu-sep"></div>
+        <div hidden>
+          <div class="menu-label">Exporter un lot (.pixel → .zip)</div>
+          <button class="menu-item" id="miBatchSVG" data-close>Choisir des fichiers → SVG</button>
+          <button class="menu-item" id="miBatchPNG" data-close>Choisir des fichiers → PNG</button>
+          <button class="menu-item" id="miBatchJPG" data-close>Choisir des fichiers → JPG</button>
+          <input type="file" id="batchFiles" accept=".pixel,.eu-pix,application/json" multiple hidden>
+        </div>
+        <button class="menu-item" id="prefsBtn" data-close>Préférences</button>
       </div>
     </div>
     <div class="menu-root">
-      <button class="menu-btn" data-menu="layer">Calque</button>
-      <div class="menu" id="menu-layer">
-        <button class="menu-item" id="addLayer" data-close>Nouveau calque</button>
-        <button class="menu-item" id="addGroup" data-close>Nouveau dossier</button>
-        <button class="menu-item" id="dupLayer" data-close>Dupliquer</button>
-        <button class="menu-item" id="transformLayer" data-close>Transformer…</button>
-        <button class="menu-item" id="pixelizeLayer" data-close>Pixelliser l'image (sur la palette)</button>
-        <button class="menu-item" id="clearLayer" data-close>Vider</button>
+      <button class="menu-btn" data-menu="edit">Édition</button>
+      <div class="menu" id="menu-edit">
+        <button class="menu-item" id="miUndo" data-close>Annuler</button>
+        <button class="menu-item" id="miRedo" data-close>Rétablir</button>
         <div class="menu-sep"></div>
-        <button class="menu-item" id="mergeLayer" data-close>Fusionner vers le bas</button>
-        <button class="menu-item" id="flattenLayers" data-close>Aplatir le dessin</button>
-        <div class="menu-sep"></div>
-        <button class="menu-item" id="delLayer" data-close>Supprimer</button>
+        <button class="menu-item" id="miCopy" data-close>Copier</button>
+        <button class="menu-item" id="miCut" data-close>Couper</button>
+        <button class="menu-item" id="miPaste" data-close>Coller</button>
+        <button class="menu-item" id="miDeleteSel" data-close>Supprimer la sélection</button>
       </div>
     </div>
     <div class="menu-root">
@@ -347,7 +341,20 @@
       </div>
     </div>
     <div class="menu-root">
-      <button class="menu-btn" data-menu="none" id="prefsBtn">Préférences</button>
+      <button class="menu-btn" data-menu="layer">Calque</button>
+      <div class="menu" id="menu-layer">
+        <button class="menu-item" id="addLayer" data-close>Nouveau calque</button>
+        <button class="menu-item" id="addGroup" data-close>Nouveau dossier</button>
+        <button class="menu-item" id="dupLayer" data-close>Dupliquer</button>
+        <button class="menu-item" id="transformLayer" data-close>Transformer… (Ctrl/⌘T)</button>
+        <button class="menu-item" id="pixelizeLayer" data-close>Pixelliser l'image (sur la palette)</button>
+        <button class="menu-item" id="clearLayer" data-close>Vider</button>
+        <div class="menu-sep"></div>
+        <button class="menu-item" id="mergeLayer" data-close>Fusionner vers le bas</button>
+        <button class="menu-item" id="flattenLayers" data-close>Aplatir le dessin</button>
+        <div class="menu-sep"></div>
+        <button class="menu-item" id="delLayer" data-close>Supprimer</button>
+      </div>
     </div>
     <span id="busy" class="busy" hidden>Export en cours…</span>
   </nav>

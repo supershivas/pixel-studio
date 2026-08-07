@@ -2,7 +2,7 @@ import { state, view, hint, stage } from "./state.js";
 import { inBounds, insideRect, render, clampSel, liftSelection, commitFloat, copySelection, cutSelection,
   deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx } from "./helpers.js";
 import { snapshot, undo, redo } from "./history.js";
-import { stamp, line, floodFill, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape } from "./drawing.js";
+import { stamp, line, floodFill, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform } from "./drawing.js";
 import { setColor, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, prefs } from "./ui.js";
 
 // ---------- Pointer interaction ----------
@@ -159,6 +159,7 @@ window.addEventListener("keydown",e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="c"){ if(state.sel||state.floatSel){ e.preventDefault(); copySelection(); setHint("Copié"); } return; }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="x"){ if(state.sel||state.floatSel){ e.preventDefault(); cutSelection(); setHint("Coupé"); } return; }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="v"){ if(state.clipboard){ e.preventDefault(); pasteClipboard(); } return; }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="t"){ e.preventDefault(); enterLayerTransform(); return; }
   if((e.key==="Delete"||e.key==="Backspace") && (state.sel||state.floatSel)){ e.preventDefault(); deleteSelection(); return; }
   if((e.key.startsWith("Arrow")) && (state.sel||state.floatSel)){ e.preventDefault(); const n=e.shiftKey?10:1;
     if(e.key==="ArrowLeft") nudgeSelection(-n,0); else if(e.key==="ArrowRight") nudgeSelection(n,0);
@@ -170,3 +171,11 @@ window.addEventListener("keydown",e=>{
   if(e.key==="+"||e.key==="="){ e.preventDefault(); setZoom(state.zoom+1); return; }
   if(e.key==="-"){ e.preventDefault(); setZoom(state.zoom-1); return; }
 });
+
+// ---------- Menu Édition ----------
+document.getElementById("miUndo").onclick=()=>undo();
+document.getElementById("miRedo").onclick=()=>redo();
+document.getElementById("miCopy").onclick=()=>{ copySelection(); setHint("Copié"); };
+document.getElementById("miCut").onclick=()=>{ cutSelection(); setHint("Coupé"); };
+document.getElementById("miPaste").onclick=()=>pasteClipboard();
+document.getElementById("miDeleteSel").onclick=()=>deleteSelection();

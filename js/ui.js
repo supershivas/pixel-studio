@@ -562,6 +562,7 @@ function transformCanvas(op){
     return y*nW+x;
   };
   state.layers.forEach(L=>{
+    if(L.isGroup) return;
     if(L.img){ transformImageLayer(L,op); L.ox=0; L.oy=0; }
     else { bakeOffset(L); const nd=new Array(nW*nH).fill(null);
       for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){ const v=L.data[y*state.W+x]; if(v===null) continue; nd[mapIdx(x,y)]=v; }
@@ -586,8 +587,8 @@ export function resize(w,h){
   w=Math.max(8,Math.min(512,w|0)); h=Math.max(8,Math.min(512,h|0));
   if(state.activeShape) bakeShape();
   commitFloat(); state.sel=null;
-  state.layers.forEach(L=>bakeOffset(L));
-  state.layers=state.layers.map(L=> L.img ? L : ({...L,data:remapData(L.data,w,h)}) );
+  state.layers.forEach(L=>{ if(!L.isGroup) bakeOffset(L); });
+  state.layers=state.layers.map(L=> (L.img||L.isGroup) ? L : ({...L,data:remapData(L.data,w,h)}) );
   state.W=w;state.H=h;
   state.active=Math.min(state.active,state.layers.length-1);
   history.length=0; state.histPtr=-1; snapshot();

@@ -24,3 +24,18 @@ python3 -m http.server 8000
 ## Déploiement
 
 GitHub Pages via `.github/workflows/pages.yml`, à chaque push sur `main`.
+
+## Workflow git
+
+À partir de maintenant, pousser directement sur `main` (pas de branche de feature ni de PR),
+comme convenu avec l'utilisateur.
+
+## Conventions
+
+- Toujours utiliser le color picker custom (HSV, dans `ui.js`, section "Color picker intégré")
+  plutôt que le picker natif de l'OS (`<input type="color">`) pour la sélection de la couleur
+  de dessin. Le seul `<input type="color">` toléré est `prefStageBg` (fond de la zone de
+  travail dans les Préférences), qui n'est pas une couleur de dessin.
+- Pas d'attributs d'event handlers inline dans le HTML (`onclick=`, etc.) — tout le binding
+  d'événements se fait en JS (`addEventListener` / `.onclick=`), ce qui permet de garder
+  `index.html` en pur markup et la logique dans `js/`.

@@ -40,15 +40,17 @@ export function switchFrame(i){
   loadFrame(i);
 }
 
-export function addFrame(){
+export function duplicateFrame(i){
+  if(i<0||i>=state.frames.length) return;
   stopPlayback();
   syncCurrentFrame();
-  const cur=state.frames[state.activeFrame];
-  const f={id:state.frameSeq++, name:String(state.frames.length+1), layers:cloneLayers(cur.layers), active:cur.active};
-  state.frames.splice(state.activeFrame+1,0,f);
-  state.activeFrame++;
+  const src=state.frames[i];
+  const f={id:state.frameSeq++, name:String(state.frames.length+1), layers:cloneLayers(src.layers), active:src.active};
+  state.frames.splice(i+1,0,f);
+  state.activeFrame=i+1;
   loadFrame(state.activeFrame);
 }
+export function addFrame(){ duplicateFrame(state.activeFrame); }
 
 export function deleteFrame(i){
   if(i<0||i>=state.frames.length||state.frames.length<=1) return;
@@ -90,9 +92,11 @@ function frameThumb(f,i){
   const src=(i===state.activeFrame)?state.layers:f.layers;
   ctx.putImageData(compositeLayers(src),0,0);
   const num=document.createElement("span"); num.className="fnum"; num.textContent=i+1;
+  const dup=document.createElement("button"); dup.className="fdup"; dup.textContent="⧉"; dup.title="Dupliquer la frame";
+  dup.addEventListener("click",e=>{ e.stopPropagation(); duplicateFrame(i); });
   const del=document.createElement("button"); del.className="fdel"; del.textContent="×"; del.title="Supprimer la frame";
   del.addEventListener("click",e=>{ e.stopPropagation(); deleteFrame(i); });
-  el.append(cv,num,del);
+  el.append(cv,num,dup,del);
   el.addEventListener("click",()=>switchFrame(i));
   el.addEventListener("dragstart",e=>{ dragFrameId=f.id; e.dataTransfer.effectAllowed="move"; });
   el.addEventListener("dragover",e=>{ if(dragFrameId==null) return; e.preventDefault(); });

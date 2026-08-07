@@ -83,6 +83,19 @@ function togglePlay(){ state.playing ? stopPlayback() : startPlayback(); }
 
 // ---------- Interface : bandeau de frames ----------
 let dragFrameId=null;
+function clearFrameDropMarks(){ framesEl?.querySelectorAll(".frame").forEach(el=>el.classList.remove("drop-before","drop-after")); }
+function frameZone(e,el){ const r=el.getBoundingClientRect(); return (e.clientX-r.left)/r.width<0.5 ? "before" : "after"; }
+// toId=null => déposer en toute fin du bandeau
+function moveFrame(fromId,toId,zone){
+  const from=state.frames.findIndex(x=>x.id===fromId); if(from<0) return;
+  const activeObj=state.frames[state.activeFrame];
+  const [mv]=state.frames.splice(from,1);
+  let to = toId==null ? state.frames.length : state.frames.findIndex(x=>x.id===toId);
+  if(toId!=null && zone==="after") to++;
+  state.frames.splice(to,0,mv);
+  state.activeFrame=state.frames.indexOf(activeObj);
+  buildFrames();
+}
 function frameThumb(f,i){
   const el=document.createElement("div");
   el.className="frame"+(i===state.activeFrame?" active":"");
@@ -98,17 +111,14 @@ function frameThumb(f,i){
   del.addEventListener("click",e=>{ e.stopPropagation(); deleteFrame(i); });
   el.append(cv,num,dup,del);
   el.addEventListener("click",()=>switchFrame(i));
-  el.addEventListener("dragstart",e=>{ dragFrameId=f.id; e.dataTransfer.effectAllowed="move"; });
-  el.addEventListener("dragover",e=>{ if(dragFrameId==null) return; e.preventDefault(); });
-  el.addEventListener("drop",e=>{ e.preventDefault(); if(dragFrameId==null||dragFrameId===f.id) return;
-    const from=state.frames.findIndex(x=>x.id===dragFrameId);
-    const activeObj=state.frames[state.activeFrame];
-    const [mv]=state.frames.splice(from,1);
-    const to=state.frames.findIndex(x=>x.id===f.id);
-    state.frames.splice(to,0,mv);
-    state.activeFrame=state.frames.indexOf(activeObj);
-    dragFrameId=null; buildFrames();
-  });
+  el.addEventListener("dragstart",e=>{ dragFrameId=f.id; e.dataTransfer.effectAllowed="move"; el.classList.add("dragging"); });
+  el.addEventListener("dragend",()=>{ dragFrameId=null; el.classList.remove("dragging"); clearFrameDropMarks(); });
+  el.addEventListener("dragover",e=>{ if(dragFrameId==null||dragFrameId===f.id) return; e.preventDefault();
+    const zone=frameZone(e,el); clearFrameDropMarks(); el.classList.add(zone==="before"?"drop-before":"drop-after"); });
+  el.addEventListener("dragleave",()=>el.classList.remove("drop-before","drop-after"));
+  el.addEventListener("drop",e=>{ e.preventDefault(); clearFrameDropMarks();
+    if(dragFrameId==null||dragFrameId===f.id) return;
+    moveFrame(dragFrameId,f.id,frameZone(e,el)); dragFrameId=null; });
   return el;
 }
 export function buildFrames(){
@@ -116,6 +126,12 @@ export function buildFrames(){
   framesEl.innerHTML="";
   state.frames.forEach((f,i)=>framesEl.appendChild(frameThumb(f,i)));
   if(frameCountEl) frameCountEl.textContent=state.frames.length+" frame"+(state.frames.length>1?"s":"");
+}
+// dépose dans l'espace vide après la dernière frame => déplacer en toute fin
+if(framesEl){
+  framesEl.addEventListener("dragover",e=>{ if(dragFrameId==null) return; e.preventDefault(); });
+  framesEl.addEventListener("drop",e=>{ if(dragFrameId==null||e.target!==framesEl) return; e.preventDefault();
+    clearFrameDropMarks(); moveFrame(dragFrameId,null,null); dragFrameId=null; });
 }
 
 if(playBtn) playBtn.addEventListener("click",togglePlay);

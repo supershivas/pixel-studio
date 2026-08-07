@@ -26,6 +26,32 @@ export function newImageLayer(dataURL,name){
   return L;
 }
 
+// ---------- Clonage / (dé)sérialisation des calques (aussi utilisé par les frames d'animation) ----------
+export function cloneLayers(layers){
+  return layers.map(L=> L.isGroup ? {...L} :
+    ({...L, data:L.data?L.data.slice():null, fx:L.fx?JSON.parse(JSON.stringify(L.fx)):null, text:L.text?{...L.text}:null}));
+}
+export function encodeLayers(layers){
+  return layers.map(L=>({ name:L.name, visible:L.visible, opacity:L.opacity, locked:!!L.locked,
+    data:L.img||L.isGroup?null:L.data, img:L.img?{dataURL:L.img.dataURL}:null, ox:L.ox||0, oy:L.oy||0,
+    text:L.text||null, fx:L.fx||null, blend:L.blend||"normal",
+    isGroup:!!L.isGroup, expanded:L.isGroup?(L.expanded!==false):undefined,
+    group: L.groupId ? layers.findIndex(x=>x.id===L.groupId) : null }));
+}
+export function decodeLayers(raw){
+  const layers=raw.map(L=>{
+    if(L.isGroup) return { id:state.layerSeq++, isGroup:true, name:L.name||"Dossier", visible:L.visible!==false, expanded:L.expanded!==false };
+    if(L.img && L.img.dataURL){ const IL=newImageLayer(L.img.dataURL, L.name||"Image");
+      IL.visible=L.visible!==false; if(typeof L.opacity==="number") IL.opacity=L.opacity; IL.ox=L.ox||0; IL.oy=L.oy||0; IL.blend=L.blend||"normal"; IL.locked=!!L.locked; return IL; }
+    return { id:state.layerSeq++, name:L.name||"Calque", visible:L.visible!==false,
+      opacity:typeof L.opacity==="number"?L.opacity:1, locked:!!L.locked,
+      data:(Array.isArray(L.data)&&L.data.length===state.W*state.H)?L.data.slice():new Array(state.W*state.H).fill(null), img:null,_imgEl:null, ox:L.ox||0, oy:L.oy||0, text:L.text||null, fx:L.fx||null, blend:L.blend||"normal" };
+  });
+  raw.forEach((L,i)=>{ if(typeof L.group==="number" && raw[L.group] && raw[L.group].isGroup) layers[i].groupId=layers[L.group].id; });
+  if(!layers.length) layers.push(newLayer("Calque 1"));
+  return layers;
+}
+
 // ---------- Dossiers de calques (groupes) ----------
 export function newGroup(name){
   return { id: state.layerSeq++, isGroup:true, name: name||"Dossier", visible:true, expanded:true };
@@ -129,6 +155,21 @@ export function ensureChecker(){
     for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){ chctx.fillStyle=((x+y)&1)?a:b; chctx.fillRect(x*c,y*c,c,c); } }
   else { chctx.fillStyle="#1e2b45"; chctx.fillRect(0,0,state.W*state.zoom,state.H*state.zoom); }
 }
+// ---------- Pelure d'oignon (frames voisines, teintées et semi-transparentes) ----------
+function drawOnionFrame(layers,tint){
+  const img=compositeLayers(layers);
+  for(let i=0;i<img.data.length;i+=4){ const a=img.data[i+3]; if(!a) continue;
+    img.data[i]=(img.data[i]+tint[0])/2; img.data[i+1]=(img.data[i+1]+tint[1])/2; img.data[i+2]=(img.data[i+2]+tint[2])/2;
+    img.data[i+3]=a*0.35; }
+  composite.width=state.W; composite.height=state.H; cctx.putImageData(img,0,0);
+  actx.save(); actx.globalAlpha=1; actx.globalCompositeOperation="source-over";
+  actx.drawImage(composite,0,0,state.W*state.zoom,state.H*state.zoom); actx.restore();
+}
+function drawOnionSkin(){
+  const prev=state.frames[state.activeFrame-1], next=state.frames[state.activeFrame+1];
+  if(prev) drawOnionFrame(prev.layers,[255,90,90]);
+  if(next) drawOnionFrame(next.layers,[90,160,255]);
+}
 export function render(){
   clearStaleSolo();
   view.width = state.W*state.zoom; view.height = state.H*state.zoom;
@@ -138,6 +179,7 @@ export function render(){
   // composition des calques sur un canevas transparent (modes de fusion vs calques inférieurs)
   artwork.width=state.W*state.zoom; artwork.height=state.H*state.zoom; actx.imageSmoothingEnabled=false;
   const tmp=composite; tmp.width=state.W; tmp.height=state.H; const tctx=cctx;
+  if(state.onionSkin && state.frames && state.frames.length>1 && !state.playing) drawOnionSkin();
   for(const L of state.layers){
     if(L.isGroup || !effVisible(L) || L.opacity<=0) continue;
     actx.save(); actx.globalAlpha=L.opacity; actx.globalCompositeOperation=blendOp(L.blend);

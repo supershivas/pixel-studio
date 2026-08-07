@@ -5,6 +5,7 @@ import { bakeShape, cancelShape, shapeToPreview, updateTextGlyph, textPreview, c
 import { setHint, fitZoom } from "./interaction.js";
 import { syncPresetToSize } from "./io.js";
 import { showToast } from "./toast.js";
+import { initFrames, transformAllFrames } from "./frames.js";
 
 // ---------- Tools UI ----------
 const TOOLS=[
@@ -77,6 +78,7 @@ export function buildSwatches(){
     if(isCustom) s.addEventListener("contextmenu",e=>{ e.preventDefault(); state.customColors=state.customColors.filter(x=>x.toUpperCase()!==c.toUpperCase()); buildSwatches(); });
     swatches.appendChild(s);
   });
+  buildCpSwatches();
 }
 function mixHex(hex,target,t){ const [r,g,b]=hexToRgb(hex),[tr,tg,tb]=hexToRgb(target);
   const m=(a,b)=>Math.round(a+(b-a)*t);
@@ -134,6 +136,19 @@ function cpAddColor(){ const hex=cpHexNow();
   if(!known.includes(hex)) state.customColors.push(hex);
   buildSwatches(); setColor(hex); closeColorPop(); }
 document.getElementById("cpAdd").onclick=cpAddColor;
+// palette du fichier, directement accessible depuis le color picker (couleurs de base + couleurs ajoutées)
+const cpSwatchesEl=document.getElementById("cpSwatches");
+function buildCpSwatches(){
+  if(!cpSwatchesEl) return;
+  cpSwatchesEl.innerHTML="";
+  PALETTE.concat(state.customColors).forEach(c=>{
+    const s=document.createElement("button"); s.className="sw"; s.style.background=c; s.title=c;
+    s.addEventListener("click",e=>{ e.stopPropagation();
+      if(_cpCb){ const cb=_cpCb; _cpCb=null; closeColorPop(); cb(c); return; }
+      const hs=hexToHsvSafe(c); if(hs){ [cpH,cpS,cpV]=hs; updatePicker(); } });
+    cpSwatchesEl.appendChild(s);
+  });
+}
 let _cpCb=null;
 function openColorPicker(anchorEl, initialHex, cb){ _cpCb=cb||null;
   const hs=hexToHsvSafe(initialHex)||[210,1,0.6]; [cpH,cpS,cpV]=hs; updatePicker();
@@ -574,21 +589,24 @@ function transformCanvas(op){
   commitFloat(); state.sel=null;
   snapshot();
   const swap=(op==="cw"||op==="ccw");
-  const nW=swap?state.H:state.W, nH=swap?state.W:state.H;
+  const oldW=state.W, oldH=state.H;
+  const nW=swap?oldH:oldW, nH=swap?oldW:oldH;
   const mapIdx=(x,y)=>{
-    if(op==="cw")   return x*nW + (state.H-1-y);
-    if(op==="ccw")  return (state.W-1-x)*nW + y;
-    if(op==="180")  return (state.H-1-y)*nW + (state.W-1-x);
-    if(op==="flipH")return y*nW + (state.W-1-x);
-    if(op==="flipV")return (state.H-1-y)*nW + x;
+    if(op==="cw")   return x*nW + (oldH-1-y);
+    if(op==="ccw")  return (oldW-1-x)*nW + y;
+    if(op==="180")  return (oldH-1-y)*nW + (oldW-1-x);
+    if(op==="flipH")return y*nW + (oldW-1-x);
+    if(op==="flipV")return (oldH-1-y)*nW + x;
     return y*nW+x;
   };
-  state.layers.forEach(L=>{
-    if(L.isGroup) return;
-    if(L.img){ transformImageLayer(L,op); L.ox=0; L.oy=0; }
-    else { bakeOffset(L); const nd=new Array(nW*nH).fill(null);
-      for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){ const v=L.data[y*state.W+x]; if(v===null) continue; nd[mapIdx(x,y)]=v; }
-      L.data=nd; }
+  transformAllFrames(layers=>{
+    layers.forEach(L=>{
+      if(L.isGroup) return;
+      if(L.img){ transformImageLayer(L,op); L.ox=0; L.oy=0; }
+      else { bakeOffset(L); const nd=new Array(nW*nH).fill(null);
+        for(let y=0;y<oldH;y++) for(let x=0;x<oldW;x++){ const v=L.data[y*oldW+x]; if(v===null) continue; nd[mapIdx(x,y)]=v; }
+        L.data=nd; }
+    });
   });
   state.W=nW; state.H=nH;
   syncPresetToSize();
@@ -609,8 +627,10 @@ export function resize(w,h){
   w=Math.max(8,Math.min(512,w|0)); h=Math.max(8,Math.min(512,h|0));
   if(state.activeShape) bakeShape();
   commitFloat(); state.sel=null;
-  state.layers.forEach(L=>{ if(!L.isGroup) bakeOffset(L); });
-  state.layers=state.layers.map(L=> (L.img||L.isGroup) ? L : ({...L,data:remapData(L.data,w,h)}) );
+  transformAllFrames(layers=>{
+    layers.forEach(L=>{ if(!L.isGroup) bakeOffset(L); });
+    layers.forEach(L=>{ if(!L.img && !L.isGroup) L.data=remapData(L.data,w,h); });
+  });
   state.W=w;state.H=h;
   state.active=Math.min(state.active,state.layers.length-1);
   history.length=0; state.histPtr=-1; snapshot();
@@ -636,6 +656,7 @@ document.getElementById("miNew").onclick=()=>{
   if(prefs.confirm && !confirm("Nouvelle image ? Le travail non enregistré sera perdu.")) return;
   state.activeShape=null; state.txOp=null; state.previewCells=null; state.sel=null; state.floatSel=null;
   state.layerSeq=1; state.layers=[newLayer("Fond"),newLayer("Dessin")]; state.active=1;
+  initFrames();
   history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();
 };

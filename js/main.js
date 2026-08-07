@@ -5,12 +5,14 @@ import { FONTS, OS, updateTextGlyph } from "./drawing.js";
 import { fitZoom } from "./interaction.js";
 import { setColor, buildLayers, loadPrefs, applyPrefs } from "./ui.js";
 import { restoreAutosaveIfAny, scheduleAutosave } from "./io.js";
+import { initFrames } from "./frames.js";
 import "./modals.js";
 
 // ---------- Init ----------
 loadPrefs();
 state.layerSeq=1;
 state.layers=[newLayer("Fond"),newLayer("Dessin")]; state.active=1;
+initFrames();
 setColor(state.color);
 buildLayers();
 snapshot();                    // état initial vierge : pas encore suivi par l'autosave

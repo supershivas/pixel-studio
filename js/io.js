@@ -1,10 +1,11 @@
-import { state } from "./state.js";
-import { compositeLayers, newLayer, newImageLayer, render } from "./helpers.js";
+import { state, PALETTE } from "./state.js";
+import { compositeLayers, newLayer, newImageLayer, render, encodeLayers, decodeLayers } from "./helpers.js";
 import { snapshot, history, onSnapshot } from "./history.js";
 import { bakeShape } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
 import { buildLayers, buildSwatches, presetSel, PRESETS } from "./ui.js";
 import { showToast } from "./toast.js";
+import { framesSnapshotForSave, loadFramesFromSave } from "./frames.js";
 
 // ---------- Export ----------
 function flattenCanvas(ls,scale,opaque){
@@ -119,12 +120,8 @@ document.getElementById("batchFiles").onchange=async e=>{
 // ---------- Projet .eu-pix ----------
 export function buildProjectObject(){
   if(state.activeShape) bakeShape();
-  return { format:"pixel", version:4, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
-    layers:state.layers.map(L=>({ name:L.name, visible:L.visible, opacity:L.opacity, locked:!!L.locked,
-      data:L.img||L.isGroup?null:L.data, img:L.img?{dataURL:L.img.dataURL}:null, ox:L.ox||0, oy:L.oy||0,
-      text:L.text||null, fx:L.fx||null, blend:L.blend||"normal",
-      isGroup:!!L.isGroup, expanded:L.isGroup?(L.expanded!==false):undefined,
-      group: L.groupId ? state.layers.findIndex(x=>x.id===L.groupId) : null })) };
+  return { format:"pixel", version:5, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
+    layers:encodeLayers(state.layers), frames:framesSnapshotForSave() };
 }
 document.getElementById("saveProj").onclick=()=>{
   const proj=buildProjectObject();
@@ -144,6 +141,33 @@ document.getElementById("fileInput").onchange=e=>{
   rd.readAsText(f);
   e.target.value="";
 };
+// ---------- Palette : import / export (JSON, couleurs personnalisées seulement) ----------
+document.getElementById("expPalette").onclick=()=>{
+  if(!state.customColors.length){ showToast("Aucune couleur personnalisée à exporter.",{type:"warn"}); return; }
+  const pal={format:"eu-pix-palette",version:1,colors:state.customColors};
+  download("data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(pal)),`palette_${stamp2()}.json`);
+  showToast("Palette exportée.",{type:"success"});
+};
+document.getElementById("impPaletteBtn").onclick=()=>document.getElementById("impPaletteFile").click();
+document.getElementById("impPaletteFile").onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const p=JSON.parse(rd.result);
+      const cols=Array.isArray(p) ? p : Array.isArray(p.colors) ? p.colors : null;
+      if(!cols) throw new Error("format inattendu");
+      const known=new Set(PALETTE.concat(state.customColors).map(x=>x.toUpperCase()));
+      let added=0;
+      for(const c of cols){ if(typeof c!=="string") continue; const hex=c.toUpperCase();
+        if(/^#[0-9A-F]{6}$/.test(hex) && !known.has(hex)){ state.customColors.push(hex); known.add(hex); added++; } }
+      buildSwatches();
+      showToast(added ? `Palette importée (${added} couleur${added>1?"s":""}).` : "Aucune nouvelle couleur.",{type:added?"success":"info"});
+    }catch(err){ showToast("Palette illisible : "+err.message,{type:"error"}); }
+  };
+  rd.readAsText(f); e.target.value="";
+};
+
 export function syncPresetToSize(){
   const key=Object.keys(PRESETS).find(k=>PRESETS[k].w===state.W && PRESETS[k].h===state.H && (!!PRESETS[k].g)===(!!state.guides));
   if(key){ presetSel.value=key; document.getElementById("customWH").hidden=true; document.getElementById("expScale").value=PRESETS[key].scale; }
@@ -161,19 +185,11 @@ export function loadProject(p){
   if(Array.isArray(p.cards)){ raw=(p.cards[0]&&p.cards[0].layers)||[]; }   // fichier multi-cartes : on ouvre la 1re carte
   else if(Array.isArray(p.layers)){ raw=p.layers; act=p.active|0; }
   else throw new Error("aucun calque");
-  state.layers=raw.map(L=>{
-    if(L.isGroup) return { id:state.layerSeq++, isGroup:true, name:L.name||"Dossier", visible:L.visible!==false, expanded:L.expanded!==false };
-    if(L.img && L.img.dataURL){ const IL=newImageLayer(L.img.dataURL, L.name||"Image");
-      IL.visible=L.visible!==false; if(typeof L.opacity==="number") IL.opacity=L.opacity; IL.ox=L.ox||0; IL.oy=L.oy||0; IL.blend=L.blend||"normal"; IL.locked=!!L.locked; return IL; }
-    return { id:state.layerSeq++, name:L.name||"Calque", visible:L.visible!==false,
-      opacity:typeof L.opacity==="number"?L.opacity:1, locked:!!L.locked,
-      data:(Array.isArray(L.data)&&L.data.length===state.W*state.H)?L.data.slice():new Array(state.W*state.H).fill(null), img:null,_imgEl:null, ox:L.ox||0, oy:L.oy||0, text:L.text||null, fx:L.fx||null, blend:L.blend||"normal" };
-  });
-  raw.forEach((L,i)=>{ if(typeof L.group==="number" && raw[L.group] && raw[L.group].isGroup) state.layers[i].groupId=state.layers[L.group].id; });
-  if(!state.layers.length) state.layers=[newLayer("Calque 1")];
+  state.layers=decodeLayers(raw);
   state.active=Math.min(Math.max(0,act),state.layers.length-1);
   while(state.active<state.layers.length-1 && state.layers[state.active].isGroup) state.active++;
   while(state.active>0 && state.layers[state.active].isGroup) state.active--;
+  loadFramesFromSave(p.frames);
   syncPresetToSize();
   history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();

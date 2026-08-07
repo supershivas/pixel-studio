@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.3.0";
+export const APP_VERSION = "1.4.0";
 
 // ---------- Palette : 16 teintes flashy, bleu + jaune UE inclus ----------
 export const PALETTE = [
@@ -24,6 +24,13 @@ export const state = {
   layers: [],      // {id,name,visible,opacity,data:(hex|null)[]}
   active: 0,
   layerSeq: 1,
+
+  frames: [],      // {id,name,layers,active} — images de l'animation
+  activeFrame: 0,
+  frameSeq: 1,
+  fps: 6,
+  playing: false,
+  onionSkin: false,
 
   histPtr: -1,
   HIST_MAX: 60,

@@ -193,6 +193,9 @@
   .cp-foot input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
     border-radius:6px;padding:5px 7px;font-family:var(--mono);font-size:12px;text-transform:uppercase}
   .current code{font:12px var(--mono);color:var(--ink-dim)}
+  .cp-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin-top:2px}
+  .cp-swatches{grid-template-columns:repeat(8,1fr);gap:4px}
+  .cp-swatches .sw{width:16px;height:16px;border-radius:3px}
 
   .opts{display:flex;flex-direction:column;gap:10px}
   .row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-dim)}
@@ -278,6 +281,21 @@
 
   .layer.group{background:var(--panel-2);border-style:solid;cursor:pointer}
   .layer.grouped{margin-left:22px}
+
+  .timeline{display:flex;align-items:center;gap:14px;padding:8px 16px;flex:0 0 auto;
+    background:var(--panel);border-top:1px solid var(--line);overflow-x:auto}
+  .timeline input[type=number]{width:48px}
+  .frames{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:2px}
+  .frame{position:relative;flex:0 0 auto;width:40px;height:56px;border-radius:5px;cursor:grab;
+    border:2px solid var(--line);background:
+    conic-gradient(#2a3a63 90deg,#1e2b4d 0 180deg,#2a3a63 0 270deg,#1e2b4d 0) 0 0/8px 8px}
+  .frame:active{cursor:grabbing}
+  .frame.active{border-color:var(--accent)}
+  .fthumb{width:100%;height:100%;display:block;border-radius:3px;image-rendering:pixelated}
+  .fnum{position:absolute;left:3px;bottom:2px;font:600 9px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+  .fdel{position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;padding:0;
+    line-height:1;font-size:11px;background:var(--danger);border-color:var(--danger);color:#fff;display:none}
+  .frame:hover .fdel{display:grid;place-items:center}
   .layer .chevron{width:16px;height:22px;display:grid;place-items:center;border:none;background:transparent;
     padding:0;color:var(--ink-dim);flex:0 0 auto}
   .layer .trash{width:22px;height:22px;display:grid;place-items:center;border:none;background:transparent;
@@ -315,6 +333,12 @@
           <button class="menu-item" id="miBatchJPG" data-close>Choisir des fichiers → JPG</button>
           <input type="file" id="batchFiles" accept=".pixel,.eu-pix,application/json" multiple hidden>
         </div>
+        <div class="menu-sep"></div>
+        <div class="menu-label">Palette</div>
+        <button class="menu-item" id="expPalette" data-close>Exporter la palette…</button>
+        <button class="menu-item" id="impPaletteBtn" data-close>Importer une palette…</button>
+        <input type="file" id="impPaletteFile" accept=".json,application/json" hidden>
+        <div class="menu-sep"></div>
         <button class="menu-item" id="prefsBtn" data-close>Préférences</button>
       </div>
     </div>
@@ -425,6 +449,8 @@
           <input id="cpHex" type="text" maxlength="7" spellcheck="false" autocomplete="off">
           <button class="mini" id="cpAdd">Ajouter</button>
         </div>
+        <div class="cp-label">Palette du fichier</div>
+        <div class="swatches cp-swatches" id="cpSwatches"></div>
       </div>
       <div class="swatches" id="swatches"></div>
       <div class="current">
@@ -453,6 +479,16 @@
     </div>
   </aside>
 </main>
+
+<div class="timeline" id="timelineBar">
+  <button class="mini" id="playBtn" title="Lecture / pause de l'animation">▶</button>
+  <div class="row" style="width:auto;gap:6px"><span style="font-size:11px;color:var(--ink-dim)">IPS</span>
+    <input type="number" id="fps" min="1" max="30" value="6"></div>
+  <label class="check"><input type="checkbox" id="onionSkin"> Pelure d'oignon</label>
+  <div class="frames" id="frames"></div>
+  <button class="mini" id="addFrameBtn" title="Ajouter une frame (duplique la frame courante)">+ Frame</button>
+  <span id="frameCount" class="note" style="margin:0 0 0 auto"></span>
+</div>
 
 <div class="modal-backdrop" id="sizeModal">
   <div class="modal" style="width:min(420px,92vw)" role="dialog" aria-label="Taille de l'image">

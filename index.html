@@ -28,6 +28,8 @@
     --accent-blue:#3d6bff;
     --danger:#ff4d6d;
     --radius:8px;
+    --checker-a:#3d5a86;   /* damier de transparence : bleu moyen / bleu-gris clair (réglable en Préférences) */
+    --checker-b:#aab8d4;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   }
@@ -232,7 +234,7 @@
   .layer .nm{flex:1;background:transparent;border:none;color:var(--ink);font-size:12px;padding:2px 0;min-width:0}
   .layer .nm:focus{outline:none;border-bottom:1px solid var(--accent)}
   .layer .thumb{width:26px;height:26px;border-radius:4px;border:1px solid var(--line);image-rendering:pixelated;background:
-    conic-gradient(#3d5a86 90deg,#aab8d4 0 180deg,#3d5a86 0 270deg,#aab8d4 0) 0 0/8px 8px}
+    conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/8px 8px}
   .layer-actions{display:flex;gap:6px;margin-top:8px}
   .layer-actions button{flex:1;padding:6px 4px;font-size:11px}
   .op-mini{width:70px;accent-color:var(--accent)}
@@ -245,7 +247,7 @@
   .cardchip.active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
   .cardchip .cardnum{font:600 11px var(--mono);color:var(--ink-dim);width:16px;text-align:center;flex:0 0 auto}
   .cardchip .thumb{width:30px;height:42px;border-radius:4px;border:1px solid var(--line);image-rendering:pixelated;flex:0 0 auto;background:
-    conic-gradient(#3d5a86 90deg,#aab8d4 0 180deg,#3d5a86 0 270deg,#aab8d4 0) 0 0/8px 8px}
+    conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/8px 8px}
   .cardchip .nm{flex:1;background:transparent;border:none;color:var(--ink);font-size:12px;padding:2px 0;min-width:0}
   .cardchip .nm:focus{outline:none;border-bottom:1px solid var(--accent)}
   .exports .r{display:flex;gap:8px}
@@ -294,7 +296,7 @@
   .frames{display:flex;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;padding:2px 10px}
   .frame{position:relative;flex:0 0 auto;width:40px;height:56px;border-radius:5px;cursor:grab;
     border:2px solid var(--line);background:
-    conic-gradient(#3d5a86 90deg,#aab8d4 0 180deg,#3d5a86 0 270deg,#aab8d4 0) 0 0/8px 8px}
+    conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/8px 8px}
   .frame:active{cursor:grabbing}
   .frame.active{border-color:var(--accent)}
   .frame.dragging{opacity:.4}
@@ -336,6 +338,8 @@
         <button class="menu-item" id="expSVG" data-close>SVG (impression)</button>
         <button class="menu-item" id="expPNG" data-close>PNG</button>
         <button class="menu-item" id="expJPG" data-close>JPG (sRGB)</button>
+        <button class="menu-item" id="expAscii" data-close>ASCII art (.txt)</button>
+        <button class="menu-item" id="expGrid" data-close>Grille de couleurs (.txt)</button>
         <div class="menu-sep"></div>
         <div hidden>
           <div class="menu-label">Exporter un lot (.pixel → .zip)</div>
@@ -619,6 +623,8 @@
         <input type="color" id="prefStageBg" value="#0d1424"></div>
       <div class="pref"><div class="lbl">Damier de transparence<small>Sinon, fond uni sous les pixels</small></div>
         <label class="switch"><input type="checkbox" id="prefChecker" checked><span class="sl"></span></label></div>
+      <div class="pref"><div class="lbl">Contraste du damier<small>Écart entre les deux teintes</small></div>
+        <input type="range" id="prefCheckerContrast" min="10" max="100" value="50"></div>
       <div class="pref"><div class="lbl">Opacité de la grille</div>
         <input type="range" id="prefGridAlpha" min="0" max="40" value="8"></div>
       <div class="pref"><div class="lbl">Molette = zoom<small>Sinon, Ctrl/⌘ + molette</small></div>

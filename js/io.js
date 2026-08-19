@@ -53,6 +53,33 @@ document.getElementById("expSVG").onclick=()=>{ if(state.activeShape) bakeShape(
   download("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svgString(state.layers,s)),`pixel_${state.W}x${state.H}.svg`);
   showToast("SVG exporté.",{type:"success"}); };
 
+// ---------- Export texte : ASCII art (niveaux de gris) et grille de couleurs hexa ----------
+const ASCII_RAMP=" .:-=+*#%@";
+function asciiArt(){
+  const img=compositeLayers(state.layers).data; let out="";
+  for(let y=0;y<state.H;y++){ let row="";
+    for(let x=0;x<state.W;x++){ const j=(y*state.W+x)*4, a=img[j+3];
+      if(a<20){ row+=" "; continue; }
+      const lum=(0.299*img[j]+0.587*img[j+1]+0.114*img[j+2])/255;
+      row+=ASCII_RAMP[Math.min(ASCII_RAMP.length-1,Math.round((1-lum)*(ASCII_RAMP.length-1)))]; }
+    out+=row+"\n"; }
+  return out;
+}
+function colorGrid(){
+  const img=compositeLayers(state.layers).data; let out="";
+  for(let y=0;y<state.H;y++){ const cells=[];
+    for(let x=0;x<state.W;x++){ const j=(y*state.W+x)*4, a=img[j+3];
+      cells.push(a<20 ? "......" : [img[j],img[j+1],img[j+2]].map(v=>v.toString(16).padStart(2,"0")).join("")); }
+    out+=cells.join(" ")+"\n"; }
+  return out;
+}
+document.getElementById("expAscii").onclick=()=>{ if(state.activeShape) bakeShape();
+  download("data:text/plain;charset=utf-8,"+encodeURIComponent(asciiArt()),`pixel_${state.W}x${state.H}.ascii.txt`);
+  showToast("ASCII art exporté.",{type:"success"}); };
+document.getElementById("expGrid").onclick=()=>{ if(state.activeShape) bakeShape();
+  download("data:text/plain;charset=utf-8,"+encodeURIComponent(colorGrid()),`pixel_${state.W}x${state.H}.grid.txt`);
+  showToast("Grille de couleurs exportée.",{type:"success"}); };
+
 // ---------- Export groupé (ZIP store, sans dépendance) ----------
 const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
 function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c=CRC_TABLE[(c^u8[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }

@@ -101,9 +101,10 @@ export function floodFill(x,y,col){
 // La zone trouvée est directement soulevée dans floatSel (comme une sélection classique) ;
 // les cellules hors-forme mais dans le rectangle englobant restent à null, donc ignorées
 // par tout le système de sélection existant (déplacement, copier/coller…).
-export function selectSimilar(x0,y0,contiguous){
-  commitFloat();
-  const L=state.layers[state.active]; const target=layerAt(L,x0,y0);
+export function selectSimilar(x0,y0,contiguous,additive){
+  const L=state.layers[state.active];
+  if(!additive) commitFloat();
+  const target=layerAt(L,x0,y0);
   if(target===null){ setHint("Aucun pixel non vide sous le curseur"); return; }
   const cells=[];
   if(contiguous){
@@ -118,18 +119,30 @@ export function selectSimilar(x0,y0,contiguous){
   } else {
     for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){ if(layerAt(L,x,y)===target) cells.push([x,y]); }
   }
-  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  for(const [cx,cy] of cells){ if(cx<minX)minX=cx; if(cy<minY)minY=cy; if(cx>maxX)maxX=cx; if(cy>maxY)maxY=cy; }
-  const w=maxX-minX+1, h=maxY-minY+1;
-  const data=new Array(w*h).fill(null);
-  for(const [cx,cy] of cells) data[(cy-minY)*w+(cx-minX)]=target;
+  if(!cells.length) return;
   snapshot();
   for(const [cx,cy] of cells) setLayerAt(L,cx,cy,null);
+
+  // coordonnées absolues du canevas -> couleur, en fusionnant avec la sélection flottante
+  // existante si on ajoute (Maj) à une sélection déjà en cours
+  const abs=new Map();
+  for(const [cx,cy] of cells) abs.set(cx+","+cy,target);
+  if(additive && state.floatSel){
+    const f=state.floatSel;
+    for(let j=0;j<f.h;j++) for(let i=0;i<f.w;i++){ const c=f.data[j*f.w+i]; if(c===null) continue; abs.set((f.x+i)+","+(f.y+j),c); }
+  }
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const k of abs.keys()){ const [ax,ay]=k.split(",").map(Number);
+    if(ax<minX)minX=ax; if(ay<minY)minY=ay; if(ax>maxX)maxX=ax; if(ay>maxY)maxY=ay; }
+  const w=maxX-minX+1, h=maxY-minY+1;
+  const data=new Array(w*h).fill(null);
+  for(const [k,c] of abs){ const [ax,ay]=k.split(",").map(Number); data[(ay-minY)*w+(ax-minX)]=c; }
+
   state.floatSel={data,w,h,x:minX,y:minY};
   state.sel={x:minX,y:minY,w,h};
   state.thumbsDirty=true;
   buildLayers();
-  setHint(cells.length+" pixel"+(cells.length>1?"s":"")+" sélectionné"+(cells.length>1?"s":""));
+  setHint(cells.length+" pixel"+(cells.length>1?"s":"")+(additive?" ajoutés":" sélectionnés"));
 }
 
 // ---------- Texte pixel (polices bitmap) ----------

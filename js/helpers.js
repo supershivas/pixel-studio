@@ -147,11 +147,18 @@ export function pasteClipboard(){ if(!state.clipboard) return; commitFloat();
 export function nudgeSelection(dx,dy){ if(state.floatSel){ state.floatSel.x+=dx; state.floatSel.y+=dy; state.sel={x:state.floatSel.x,y:state.floatSel.y,w:state.floatSel.w,h:state.floatSel.h}; render(); }
   else if(state.sel){ state.sel.x+=dx; state.sel.y+=dy; clampSel(); render(); } }
 
+// deux teintes bleu/bleu-gris autour d'une même lightness médiane ; l'écart entre les deux
+// (et donc le contraste du damier) est réglable dans les Préférences
+export function checkerColors(){
+  const mid=58, spread=Math.max(4,Math.min(42,(prefs.checkerContrast??50)/100*42));
+  const hue=215, sat=30;
+  return [`hsl(${hue} ${sat}% ${Math.round(mid-spread)}%)`, `hsl(${hue} ${sat}% ${Math.round(mid+spread)}%)`];
+}
 export function ensureChecker(){
-  const key=state.W+"x"+state.H+"@"+state.zoom+(prefs.checker?"c":"p");
+  const key=state.W+"x"+state.H+"@"+state.zoom+(prefs.checker?"c"+prefs.checkerContrast:"p");
   if(key===state.checkerKey && checkerCv.width===state.W*state.zoom) return;
   state.checkerKey=key; checkerCv.width=state.W*state.zoom; checkerCv.height=state.H*state.zoom;
-  if(prefs.checker){ const a="#3d5a86", b="#aab8d4", c=state.zoom;
+  if(prefs.checker){ const [a,b]=checkerColors(); const c=state.zoom;
     for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){ chctx.fillStyle=((x+y)&1)?a:b; chctx.fillRect(x*c,y*c,c,c); } }
   else { chctx.fillStyle="#1e2b45"; chctx.fillRect(0,0,state.W*state.zoom,state.H*state.zoom); }
 }

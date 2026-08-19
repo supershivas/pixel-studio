@@ -54,7 +54,7 @@ view.addEventListener("pointerdown",e=>{
     if(img.data[j+3]>0){ const h="#"+[img.data[j],img.data[j+1],img.data[j+2]].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); setColor(h); }
   }
   else if(state.tool==="shape" && state.shapeKind==="line"){ snapshot(); drawing=true; state.previewCells=new Map(); line(x,y,x,y,stampPreview); render(); }
-  else if(state.tool==="wand"){ selectSimilar(x,y,state.wandContiguous); setTool("select"); render(); }
+  else if(state.tool==="wand"){ selectSimilar(x,y,state.wandContiguous,e.shiftKey); render(); }
   else if(state.tool==="crop"){ state.cropRect={x,y,w:1,h:1}; state.cropDrag={x0:x,y0:y}; drawing=true; render(); }
   else if(state.tool==="shape" && TRANSFORM_TOOLS.has(state.shapeKind)){ creating=true; drawing=true; state.activeShape=makeShape(x,y,x,y); shapeToPreview(); render(); }
   else if(state.tool==="text"){ const hitL=hitTextLayer(x,y);

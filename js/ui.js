@@ -1,5 +1,5 @@
 import { state, PALETTE, stage, APP_VERSION } from "./state.js";
-import { render, commitFloat, bakeOffset, idx, inBounds, layerPixels, hexToRgb, compositeLayers, newLayer, newImageLayer, newGroup, groupOf, effVisible, isSolo, setSolo } from "./helpers.js";
+import { render, commitFloat, bakeOffset, idx, inBounds, layerPixels, hexToRgb, compositeLayers, newLayer, newImageLayer, newGroup, groupOf, effVisible, isSolo, setSolo, checkerColors } from "./helpers.js";
 import { snapshot, history } from "./history.js";
 import { bakeShape, cancelShape, shapeToPreview, updateTextGlyph, textPreview, commitText, rasterizeMicro, rasterizeTTF, textLabel } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
@@ -86,7 +86,8 @@ updateToolOpts(state.tool);
 export function setTool(id){
   if(state.activeShape) bakeShape();
   if(typeof state.textEditing!=="undefined" && state.textEditing && id!=="text") commitCanvasText();
-  if(state.tool==="select" && id!=="select"){ commitFloat(); state.sel=null; }
+  const selTools=new Set(["select","wand"]);
+  if(selTools.has(state.tool) && !selTools.has(id)){ commitFloat(); state.sel=null; }
   if(state.tool==="crop" && id!=="crop"){ state.cropRect=null; }
   state.tool=id;
   [...rail.querySelectorAll(".tool")].forEach(el=>el.classList.toggle("active",el.dataset.tool===id));
@@ -718,7 +719,7 @@ document.getElementById("miNew").onclick=()=>{
 };
 
 // ---------- Préférences ----------
-export const prefs={ stageBg:"#0d1424", checker:true, gridAlpha:0.08, wheelZoom:false,
+export const prefs={ stageBg:"#0d1424", checker:true, checkerContrast:50, gridAlpha:0.08, wheelZoom:false,
   kbd:true, confirm:true, filled:false, hist:60 };
 export function savePrefs(){ try{ localStorage.setItem("eupix.prefs",JSON.stringify(prefs)); }catch(_){}}
 export function loadPrefs(){ try{ const s=localStorage.getItem("eupix.prefs"); if(s) Object.assign(prefs,JSON.parse(s)); }catch(_){}}
@@ -728,10 +729,14 @@ export function applyPrefs(){
   state.HIST_MAX = prefs.hist;
   state.fillShape = prefs.filled;
   const fs=document.getElementById("fillShape"); if(fs) fs.checked=prefs.filled;
+  const [ca,cb]=checkerColors();
+  document.documentElement.style.setProperty("--checker-a",ca);
+  document.documentElement.style.setProperty("--checker-b",cb);
   // refléter dans la modale
   const set=(id,v,prop)=>{ const el=document.getElementById(id); if(el) el[prop]=v; };
   set("prefStageBg",prefs.stageBg,"value");
   set("prefChecker",prefs.checker,"checked");
+  set("prefCheckerContrast",prefs.checkerContrast,"value");
   set("prefGridAlpha",Math.round(prefs.gridAlpha*100),"value");
   set("prefWheelZoom",prefs.wheelZoom,"checked");
   set("prefKbd",prefs.kbd,"checked");
@@ -748,10 +753,11 @@ document.getElementById("prefsModal").addEventListener("click",e=>{ if(e.target.
 const bindPref=(id,key,ev,fn)=>{ const el=document.getElementById(id); el.addEventListener(ev,()=>{ prefs[key]=fn(el); savePrefs(); applyPrefs(); }); };
 bindPref("prefStageBg","stageBg","input",el=>el.value);
 bindPref("prefChecker","checker","change",el=>el.checked);
+bindPref("prefCheckerContrast","checkerContrast","input",el=>+el.value);
 bindPref("prefGridAlpha","gridAlpha","input",el=>(+el.value)/100);
 bindPref("prefWheelZoom","wheelZoom","change",el=>el.checked);
 bindPref("prefKbd","kbd","change",el=>el.checked);
 bindPref("prefConfirm","confirm","change",el=>el.checked);
 bindPref("prefFilled","filled","change",el=>el.checked);
 bindPref("prefHist","hist","change",el=>Math.max(10,Math.min(200,+el.value||60)));
-document.getElementById("prefsReset").onclick=()=>{ Object.assign(prefs,{stageBg:"#0d1424",checker:true,gridAlpha:0.08,wheelZoom:false,kbd:true,confirm:true,filled:false,hist:60}); savePrefs(); applyPrefs(); };
+document.getElementById("prefsReset").onclick=()=>{ Object.assign(prefs,{stageBg:"#0d1424",checker:true,checkerContrast:50,gridAlpha:0.08,wheelZoom:false,kbd:true,confirm:true,filled:false,hist:60}); savePrefs(); applyPrefs(); };

@@ -11,6 +11,10 @@ import { initFrames, transformAllFrames } from "./frames.js";
 const TOOLS=[
   {id:"move",    k:"V", label:"Déplacer le calque", svg:'<path d="M12 3l3 3h-2v5h5V9l3 3-3 3v-2h-5v5h2l-3 3-3-3h2v-5H6v2l-3-3 3-3v2h5V6H9z" fill="currentColor"/>'},
   {id:"select",  k:"M", label:"Sélection rectangulaire", svg:'<rect x="4" y="5" width="16" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2"/>'},
+  {id:"wand",    k:"W", label:"Baguette magique (sélectionner les pixels similaires)",
+    svg:'<path d="M4 20L15 9" stroke="currentColor" stroke-width="1.8"/><path d="M15 9l2 2" stroke="currentColor" stroke-width="1.8"/><path d="M18 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill="currentColor"/><path d="M6 5l.6 1.4L8 7l-1.4.6L6 9l-.6-1.4L4 7l1.4-.6z" fill="currentColor" opacity=".7"/>'},
+  {id:"crop",    k:"C", label:"Recadrer",
+    svg:'<path d="M7 3v14a1 1 0 0 0 1 1h14" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M17 21V7a1 1 0 0 0-1-1H3" fill="none" stroke="currentColor" stroke-width="1.8"/>'},
   {sep:true},
   {id:"pencil",  k:"B", label:"Crayon",   svg:'<path d="M4 20l3-1 11-11-2-2L5 17l-1 3z" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
   {id:"eraser",  k:"E", label:"Gomme",    svg:'<rect x="6" y="11" width="12" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 11l4-4 5 5-3 3" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
@@ -43,6 +47,7 @@ const TOOL_OPT_GROUPS={
   optFill:   new Set(["rect","ellipse","triangle","diamond","star","heart"]),
   optStroke: new Set(["line","rect","ellipse","triangle","diamond","star","heart"]),
   optMirror: new Set(["pencil","eraser","line","rect","ellipse","triangle","diamond","star","heart"]),
+  optWand:   new Set(["wand"]),
   textOpts:  new Set(["text"]),
 };
 function updateToolOpts(id){
@@ -59,6 +64,7 @@ export function setTool(id){
   if(state.activeShape) bakeShape();
   if(typeof state.textEditing!=="undefined" && state.textEditing && id!=="text") commitCanvasText();
   if(state.tool==="select" && id!=="select"){ commitFloat(); state.sel=null; }
+  if(state.tool==="crop" && id!=="crop"){ state.cropRect=null; }
   state.tool=id;
   [...rail.querySelectorAll(".tool")].forEach(el=>el.classList.toggle("active",el.dataset.tool===id));
   updateToolOpts(id);
@@ -534,6 +540,7 @@ document.getElementById("fillShape").onchange=e=>{ state.fillShape=e.target.chec
 document.getElementById("strokeW").oninput=e=>{ state.strokeWidth=+e.target.value; document.getElementById("strokeWV").textContent=state.strokeWidth;
   if(state.activeShape && state.activeShape.kind!=="layer"){ state.activeShape.strokeW=state.strokeWidth; shapeToPreview(); render(); } };
 document.getElementById("mirror").onchange=e=>state.mirror=e.target.value;
+document.getElementById("wandContiguous").onchange=e=>state.wandContiguous=e.target.checked;
 document.getElementById("gridToggle").onchange=render;
 
 document.getElementById("textScale").oninput=e=>{ state.textScale=+e.target.value; document.getElementById("textScaleV").textContent=state.textScale+"×"; updateTextGlyph(); if(state.textEditing&&state.textGlyph.cells.length){ textPreview(state.textAnchor.x,state.textAnchor.y); render(); } };
@@ -566,6 +573,32 @@ document.getElementById("applyWH").onclick=()=>{ resize(+document.getElementById
 function remapData(d,w,h){ const nd=new Array(w*h).fill(null);
   for(let y=0;y<Math.min(h,state.H);y++) for(let x=0;x<Math.min(w,state.W);x++) nd[y*w+x]=d[y*state.W+x];
   return nd; }
+
+// ---------- Recadrage (outil Recadrer) ----------
+export function applyCrop(cx,cy,cw,ch){
+  cx=Math.max(0,cx|0); cy=Math.max(0,cy|0);
+  cw=Math.max(1,Math.min(cw|0,state.W-cx)); ch=Math.max(1,Math.min(ch|0,state.H-cy));
+  if(cw===state.W && ch===state.H && cx===0 && cy===0) return;
+  if(state.activeShape) bakeShape();
+  commitFloat(); state.sel=null;
+  transformAllFrames(layers=>{
+    layers.forEach(L=>{ if(!L.isGroup) bakeOffset(L); });
+    layers.forEach(L=>{
+      if(L.isGroup) return;
+      if(L.img){ L.ox=(L.ox||0)-cx; L.oy=(L.oy||0)-cy; return; }
+      const nd=new Array(cw*ch).fill(null);
+      for(let y=0;y<ch;y++) for(let x=0;x<cw;x++){ const sx=cx+x, sy=cy+y;
+        if(sx<state.W && sy<state.H) nd[y*cw+x]=L.data[sy*state.W+sx]; }
+      L.data=nd;
+    });
+  });
+  state.W=cw; state.H=ch;
+  state.active=Math.min(state.active,state.layers.length-1);
+  syncPresetToSize();
+  history.length=0; state.histPtr=-1; snapshot();
+  buildLayers(); fitZoom();
+  showToast("Image rognée à "+cw+"×"+ch+".",{type:"success"});
+}
 
 // ---------- Rotation / miroir du canevas ----------
 function transformImageLayer(L,op){
@@ -650,7 +683,7 @@ document.querySelectorAll(".menu").forEach(menu=>{
   menu.addEventListener("click",e=>{ e.stopPropagation(); if(e.target.closest("[data-close]")) closeMenus(); });
 });
 document.addEventListener("click",closeMenus);
-window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden){ closeColorPop(); return; } if(state.activeShape){ cancelShape(); return; } if(state.floatSel){ commitFloat(); state.sel=null; render(); return; } if(state.sel){ state.sel=null; render(); return; } if(document.getElementById("confirmModal").classList.contains("open")){ closeConfirm(); return; } closeMenus(); document.getElementById("prefsModal").classList.remove("open"); document.getElementById("sizeModal").classList.remove("open"); document.getElementById("fxModal").classList.remove("open"); } });
+window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden){ closeColorPop(); return; } if(state.cropRect){ state.cropRect=null; render(); return; } if(state.activeShape){ cancelShape(); return; } if(state.floatSel){ commitFloat(); state.sel=null; render(); return; } if(state.sel){ state.sel=null; render(); return; } if(document.getElementById("confirmModal").classList.contains("open")){ closeConfirm(); return; } closeMenus(); document.getElementById("prefsModal").classList.remove("open"); document.getElementById("sizeModal").classList.remove("open"); document.getElementById("fxModal").classList.remove("open"); } });
 
 document.getElementById("miNew").onclick=()=>{
   if(prefs.confirm && !confirm("Nouvelle image ? Le travail non enregistré sera perdu.")) return;

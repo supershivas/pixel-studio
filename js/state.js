@@ -45,6 +45,8 @@ export const state = {
 
   previewCells: null, // Map "x,y"->color for in-progress shape
   sel: null, floatSel: null, clipboard: null, selDrag: null,   // sélection rectangulaire / presse-papiers
+  cropRect: null,      // {x,y,w,h} en cours de définition avec l'outil Recadrer
+  wandContiguous: true,
 
   textAnchor: {x:0,y:0}, textEditing: false, caretOn: true,
 };

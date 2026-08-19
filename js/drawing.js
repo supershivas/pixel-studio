@@ -97,6 +97,41 @@ export function floodFill(x,y,col){
   }
 }
 
+// ---------- Baguette magique : sélectionne les pixels de même couleur (contigus ou non) ----------
+// La zone trouvée est directement soulevée dans floatSel (comme une sélection classique) ;
+// les cellules hors-forme mais dans le rectangle englobant restent à null, donc ignorées
+// par tout le système de sélection existant (déplacement, copier/coller…).
+export function selectSimilar(x0,y0,contiguous){
+  commitFloat();
+  const L=state.layers[state.active]; const target=layerAt(L,x0,y0);
+  if(target===null){ setHint("Aucun pixel non vide sous le curseur"); return; }
+  const cells=[];
+  if(contiguous){
+    const seen=new Uint8Array(state.W*state.H); const st=[[x0,y0]];
+    while(st.length){
+      const [cx,cy]=st.pop(); if(cx<0||cy<0||cx>=state.W||cy>=state.H) continue;
+      const k=cy*state.W+cx; if(seen[k]) continue;
+      if(layerAt(L,cx,cy)!==target) continue;
+      seen[k]=1; cells.push([cx,cy]);
+      st.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+    }
+  } else {
+    for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){ if(layerAt(L,x,y)===target) cells.push([x,y]); }
+  }
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const [cx,cy] of cells){ if(cx<minX)minX=cx; if(cy<minY)minY=cy; if(cx>maxX)maxX=cx; if(cy>maxY)maxY=cy; }
+  const w=maxX-minX+1, h=maxY-minY+1;
+  const data=new Array(w*h).fill(null);
+  for(const [cx,cy] of cells) data[(cy-minY)*w+(cx-minX)]=target;
+  snapshot();
+  for(const [cx,cy] of cells) setLayerAt(L,cx,cy,null);
+  state.floatSel={data,w,h,x:minX,y:minY};
+  state.sel={x:minX,y:minY,w,h};
+  state.thumbsDirty=true;
+  buildLayers();
+  setHint(cells.length+" pixel"+(cells.length>1?"s":"")+" sélectionné"+(cells.length>1?"s":""));
+}
+
 // ---------- Texte pixel (polices bitmap) ----------
 export const OS=8;                        // suréchantillonnage : 1 pixel de glyphe = OS px
 export const FONTS={

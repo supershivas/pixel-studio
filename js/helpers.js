@@ -241,6 +241,24 @@ export function drawGrid(){
     octx.strokeStyle="#000"; octx.strokeRect(sr.x*state.zoom+.5, sr.y*state.zoom+.5, sr.w*state.zoom-1, sr.h*state.zoom-1);
     octx.strokeStyle="#fff"; octx.lineDashOffset=4; octx.strokeRect(sr.x*state.zoom+.5, sr.y*state.zoom+.5, sr.w*state.zoom-1, sr.h*state.zoom-1);
     octx.restore(); }
+  drawCropOverlay();
+}
+
+// ---------- Aperçu de l'outil Recadrer (assombrit l'extérieur de la zone gardée) ----------
+function drawCropOverlay(){
+  const r=state.cropRect; if(!r) return;
+  const z=state.zoom, W=overlay.width, H=overlay.height;
+  const rx=r.x*z, ry=r.y*z, rw=r.w*z, rh=r.h*z;
+  octx.save(); octx.fillStyle="rgba(6,10,20,.6)";
+  octx.fillRect(0,0,W,ry);
+  octx.fillRect(0,ry+rh,W,H-(ry+rh));
+  octx.fillRect(0,ry,rx,rh);
+  octx.fillRect(rx+rw,ry,W-(rx+rw),rh);
+  octx.restore();
+  octx.save(); octx.setLineDash([4,3]); octx.lineWidth=1;
+  octx.strokeStyle="#000"; octx.strokeRect(rx+.5,ry+.5,rw-1,rh-1);
+  octx.strokeStyle="#fff"; octx.lineDashOffset=4; octx.strokeRect(rx+.5,ry+.5,rw-1,rh-1);
+  octx.restore();
 }
 
 export function drawGuides(){

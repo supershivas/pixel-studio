@@ -2,8 +2,8 @@ import { state, view, hint, stage } from "./state.js";
 import { inBounds, insideRect, render, clampSel, liftSelection, commitFloat, copySelection, cutSelection,
   deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx } from "./helpers.js";
 import { snapshot, undo, redo } from "./history.js";
-import { stamp, line, floodFill, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform } from "./drawing.js";
-import { setColor, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, prefs } from "./ui.js";
+import { stamp, line, floodFill, selectSimilar, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform } from "./drawing.js";
+import { setColor, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, prefs } from "./ui.js";
 
 // ---------- Pointer interaction ----------
 let drawing=false, startX=0, startY=0, lastX=0, lastY=0, creating=false, moveOrig=null, moveStart=null;
@@ -35,7 +35,7 @@ view.addEventListener("pointerdown",e=>{
       state.txStart={gx:x+0.5,gy:y+0.5,cx:state.activeShape.cx,cy:state.activeShape.cy}; return; }
     bakeShape(); // clic hors du cadre => on transpose, puis on peut recommencer
   }
-  if(state.layers[state.active].locked && state.tool!=="eyedropper"){ setHint("Calque verrouillé — déverrouille-le dans ses options (⚙)"); return; }
+  if(state.layers[state.active].locked && state.tool!=="eyedropper" && state.tool!=="crop"){ setHint("Calque verrouillé — déverrouille-le dans ses options (⚙)"); return; }
   if(!inBounds(x,y)) return;
   startX=x;startY=y;lastX=x;lastY=y;
 
@@ -54,6 +54,8 @@ view.addEventListener("pointerdown",e=>{
     if(img.data[j+3]>0){ const h="#"+[img.data[j],img.data[j+1],img.data[j+2]].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); setColor(h); }
   }
   else if(state.tool==="line"){ snapshot(); drawing=true; state.previewCells=new Map(); line(x,y,x,y,stampPreview); render(); }
+  else if(state.tool==="wand"){ selectSimilar(x,y,state.wandContiguous); setTool("select"); render(); }
+  else if(state.tool==="crop"){ state.cropRect={x,y,w:1,h:1}; state.cropDrag={x0:x,y0:y}; drawing=true; render(); }
   else if(TRANSFORM_TOOLS.has(state.tool)){ creating=true; drawing=true; state.activeShape=makeShape(x,y,x,y); shapeToPreview(); render(); }
   else if(state.tool==="text"){ const hitL=hitTextLayer(x,y);
     if(hitL){ state.active=state.layers.indexOf(hitL); buildLayers(); startEditTextLayer(hitL,e.clientX,e.clientY); }
@@ -84,6 +86,15 @@ view.addEventListener("pointermove",e=>{
   }
   if(!drawing){ setHint(inBounds(x,y)?(x+" , "+y+"   ·   "+state.tool):""); return; }
 
+  // recadrage : glisser pour définir la zone à conserver
+  if(state.tool==="crop" && drawing && state.cropDrag){
+    const x0=state.cropDrag.x0,y0=state.cropDrag.y0;
+    const rx=Math.max(0,Math.min(x0,x)), ry=Math.max(0,Math.min(y0,y));
+    const rw=Math.min(Math.abs(x-x0)+1, state.W-rx), rh=Math.min(Math.abs(y-y0)+1, state.H-ry);
+    state.cropRect={x:rx,y:ry,w:rw,h:rh};
+    setHint("recadrer "+rw+"×"+rh); render(); return;
+  }
+
   // sélection rectangulaire
   if(state.tool==="select" && drawing && state.selDrag){
     if(state.selDrag.mode==="new"){ const x0=state.selDrag.x0,y0=state.selDrag.y0;
@@ -110,6 +121,9 @@ view.addEventListener("pointermove",e=>{
 view.addEventListener("pointerup",e=>{
   if(!drawing) return;
   const [x,y]=cellFromEvent(e);
+  if(state.tool==="crop" && state.cropDrag){ state.cropDrag=null; drawing=false;
+    if(state.cropRect && state.cropRect.w<=1 && state.cropRect.h<=1){ state.cropRect=null; render(); setHint(""); return; }
+    render(); setHint("Entrée pour rogner · Échap pour annuler"); return; }
   if(state.tool==="select" && state.selDrag){ if(state.selDrag.mode==="new" && state.sel && state.sel.w<=1 && state.sel.h<=1) state.sel=null;
     state.selDrag=null; drawing=false; render(); return; }
   if(creating){ creating=false; drawing=false; state.txOp=null;
@@ -153,6 +167,8 @@ stage.addEventListener("wheel",e=>{ if(!prefs.wheelZoom && !e.ctrlKey && !e.meta
 // ---------- Keyboard ----------
 window.addEventListener("keydown",e=>{
   if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA") return;
+  if(e.key==="Enter" && state.cropRect){ e.preventDefault();
+    applyCrop(state.cropRect.x,state.cropRect.y,state.cropRect.w,state.cropRect.h); state.cropRect=null; setTool("move"); return; }
   if(e.key==="Enter" && state.activeShape){ e.preventDefault(); bakeShape(); return; }
   if(e.key==="Enter" && state.floatSel){ e.preventDefault(); commitFloat(); render(); return; }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
@@ -166,7 +182,7 @@ window.addEventListener("keydown",e=>{
   if((e.key.startsWith("Arrow")) && (state.sel||state.floatSel)){ e.preventDefault(); const n=e.shiftKey?10:1;
     if(e.key==="ArrowLeft") nudgeSelection(-n,0); else if(e.key==="ArrowRight") nudgeSelection(n,0);
     else if(e.key==="ArrowUp") nudgeSelection(0,-n); else if(e.key==="ArrowDown") nudgeSelection(0,n); return; }
-  const map={v:"move",m:"select",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",l:"line",r:"rect",o:"ellipse",s:"star",h:"heart",u:"triangle",d:"diamond",t:"text"};
+  const map={v:"move",m:"select",w:"wand",c:"crop",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",l:"line",r:"rect",o:"ellipse",s:"star",h:"heart",u:"triangle",d:"diamond",t:"text"};
   const k=e.key.toLowerCase();
   if(e.ctrlKey||e.metaKey||e.altKey) return;   // laisser les raccourcis navigateur
   if(map[k]){ e.preventDefault(); setTool(map[k]); return; }

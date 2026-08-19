@@ -3,7 +3,7 @@ import { inBounds, insideRect, render, clampSel, liftSelection, commitFloat, cop
   deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx } from "./helpers.js";
 import { snapshot, undo, redo } from "./history.js";
 import { stamp, line, floodFill, selectSimilar, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform } from "./drawing.js";
-import { setColor, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, prefs } from "./ui.js";
+import { setColor, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, updateCropFields, prefs } from "./ui.js";
 
 // ---------- Pointer interaction ----------
 let drawing=false, startX=0, startY=0, lastX=0, lastY=0, creating=false, moveOrig=null, moveStart=null;
@@ -55,7 +55,7 @@ view.addEventListener("pointerdown",e=>{
   }
   else if(state.tool==="shape" && state.shapeKind==="line"){ snapshot(); drawing=true; state.previewCells=new Map(); line(x,y,x,y,stampPreview); render(); }
   else if(state.tool==="wand"){ selectSimilar(x,y,state.wandContiguous,e.shiftKey); render(); }
-  else if(state.tool==="crop"){ state.cropRect={x,y,w:1,h:1}; state.cropDrag={x0:x,y0:y}; drawing=true; render(); }
+  else if(state.tool==="crop"){ state.cropRect={x,y,w:1,h:1}; state.cropDrag={x0:x,y0:y}; drawing=true; updateCropFields(); render(); }
   else if(state.tool==="shape" && TRANSFORM_TOOLS.has(state.shapeKind)){ creating=true; drawing=true; state.activeShape=makeShape(x,y,x,y); shapeToPreview(); render(); }
   else if(state.tool==="text"){ const hitL=hitTextLayer(x,y);
     if(hitL){ state.active=state.layers.indexOf(hitL); buildLayers(); startEditTextLayer(hitL,e.clientX,e.clientY); }
@@ -92,6 +92,7 @@ view.addEventListener("pointermove",e=>{
     const rx=Math.max(0,Math.min(x0,x)), ry=Math.max(0,Math.min(y0,y));
     const rw=Math.min(Math.abs(x-x0)+1, state.W-rx), rh=Math.min(Math.abs(y-y0)+1, state.H-ry);
     state.cropRect={x:rx,y:ry,w:rw,h:rh};
+    updateCropFields();
     setHint("recadrer "+rw+"×"+rh); render(); return;
   }
 
@@ -163,6 +164,20 @@ stage.addEventListener("wheel",e=>{ if(!prefs.wheelZoom && !e.ctrlKey && !e.meta
     stage.scrollLeft += (nr.left + cx*state.zoom) - e.clientX;
     stage.scrollTop  += (nr.top  + cy*state.zoom) - e.clientY; }
 },{passive:false});
+
+// ---------- Empêcher les raccourcis de recherche du navigateur ----------
+// L'éditeur utilise énormément de lettres seules comme raccourcis (b, e, g, i, f, c…) ;
+// les raccourcis de recherche de Firefox (même ceux qu'on n'utilise pas ici) doivent être
+// neutralisés pour ne jamais interrompre le dessin ou détourner le focus du clavier.
+window.addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  const isBrowserFind=
+    ((e.ctrlKey||e.metaKey) && !e.altKey && (k==="f"||k==="g")) ||   // Rechercher / Suivant
+    e.key==="F3" ||                                                  // Suivant / (Maj) Précédent
+    (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key==="/"||e.key==="'")   // Recherche rapide Firefox
+      && e.target.tagName!=="INPUT" && e.target.tagName!=="TEXTAREA" && !state.textEditing);
+  if(isBrowserFind) e.preventDefault();
+});
 
 // ---------- Keyboard ----------
 window.addEventListener("keydown",e=>{

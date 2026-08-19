@@ -375,25 +375,53 @@ export function enterLayerTransform(){
   setHint("Transforme le calque · Entrée valide · Échap annule");
 }
 document.getElementById("transformLayer").onclick=enterLayerTransform;
-document.getElementById("pixelizeLayer").onclick=()=>{
+
+// ---------- Pixelliser sur la palette (bloc de détail réglable + tramage) ----------
+let pixelizeTarget=null;
+function openPixelizeModal(){
   const L=state.layers[state.active];
   if(!L.img || !L._imgEl || !L._imgEl.complete || !L._imgEl.naturalWidth){ setHint("Sélectionne un calque image à pixelliser."); return; }
+  pixelizeTarget=L;
+  document.getElementById("pixelizeModal").classList.add("open");
+}
+document.getElementById("pixelizeLayer").onclick=openPixelizeModal;
+document.getElementById("pixelizeClose").onclick=()=>document.getElementById("pixelizeModal").classList.remove("open");
+document.getElementById("pixelizeCancel").onclick=()=>document.getElementById("pixelizeModal").classList.remove("open");
+document.getElementById("pixelizeModal").addEventListener("click",e=>{ if(e.target.id==="pixelizeModal") e.currentTarget.classList.remove("open"); });
+document.getElementById("pxBlock").oninput=e=>{ document.getElementById("pxBlockV").textContent=e.target.value+" px"; };
+const BAYER4=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+document.getElementById("pixelizeOk").onclick=()=>{
+  const L=pixelizeTarget; const li=state.layers.indexOf(L); if(!L||li<0) return;
+  const block=Math.max(1,+document.getElementById("pxBlock").value||1);
+  const alphaThresh=+document.getElementById("pxAlpha").value||0;
+  const dither=document.getElementById("pxDither").checked;
+
   const off=document.createElement("canvas"); off.width=state.W; off.height=state.H; const octx2=off.getContext("2d");
   octx2.imageSmoothingEnabled=true;
   const im=L._imgEl, s=Math.min(state.W/im.naturalWidth,state.H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
   octx2.drawImage(im,(state.W-w)/2+(L.ox||0),(state.H-h)/2+(L.oy||0),w,h);
   const px=octx2.getImageData(0,0,state.W,state.H).data;
   const palHex=PALETTE.concat(state.customColors), pal=palHex.map(hexToRgb);
-  const nd=new Array(state.W*state.H).fill(null);
-  for(let i=0;i<state.W*state.H;i++){ const a=px[i*4+3]; if(a<128) continue;
-    const r=px[i*4],g=px[i*4+1],b=px[i*4+2]; let best=0,bd=1e9;
+  const nearest=(r,g,b)=>{ let best=0,bd=1e9;
     for(let p=0;p<pal.length;p++){ const dr=r-pal[p][0],dg=g-pal[p][1],db=b-pal[p][2], dd=dr*dr+dg*dg+db*db; if(dd<bd){bd=dd;best=p;} }
-    nd[i]=palHex[best].toUpperCase(); }
+    return palHex[best].toUpperCase(); };
+  const nd=new Array(state.W*state.H).fill(null);
+  for(let by=0;by<state.H;by+=block) for(let bx=0;bx<state.W;bx+=block){
+    const ey=Math.min(state.H,by+block), ex=Math.min(state.W,bx+block);
+    let sr=0,sg=0,sb=0,sa=0,n=0;
+    for(let y=by;y<ey;y++) for(let x=bx;x<ex;x++){ const i=(y*state.W+x)*4; sr+=px[i]; sg+=px[i+1]; sb+=px[i+2]; sa+=px[i+3]; n++; }
+    if(sa/n<alphaThresh) continue;
+    let r=sr/n, g=sg/n, b=sb/n;
+    if(dither){ const d=(BAYER4[(by/block|0)%4][(bx/block|0)%4]/16-0.5)*24; r+=d; g+=d; b+=d; }
+    const hex=nearest(Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b)));
+    for(let y=by;y<ey;y++) for(let x=bx;x<ex;x++) nd[y*state.W+x]=hex;
+  }
   snapshot();
   const NL=newLayer("Pixellisé"); NL.data=nd;
-  state.layers.splice(state.active+1,0,NL); state.active++;
+  state.layers.splice(li+1,0,NL); state.active=li+1;
   state.thumbsDirty=true; buildLayers(); render();
-  setHint("Image pixellisée sur la palette ("+pal.length+" couleurs).");
+  document.getElementById("pixelizeModal").classList.remove("open");
+  showToast("Image pixellisée sur la palette ("+pal.length+" couleurs, bloc "+block+" px"+(dither?", tramage":"")+").",{type:"success"});
 };
 
 // handles (coordonnées écran = grille × zoom)

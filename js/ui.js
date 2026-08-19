@@ -46,6 +46,7 @@ const TOOL_OPT_GROUPS={
   optStroke:    new Set(["shape"]),
   optMirror:    new Set(["pencil","eraser","shape"]),
   optWand:      new Set(["wand"]),
+  optCrop:      new Set(["crop"]),
   textOpts:     new Set(["text"]),
 };
 function updateToolOpts(id){
@@ -57,7 +58,28 @@ function updateToolOpts(id){
     if(shown) anyShown=true;
   }
   document.getElementById("optEmpty").hidden=anyShown;
+  if(id==="crop"){ if(!state.cropRect) state.cropRect={x:0,y:0,w:state.W,h:state.H}; updateCropFields(); render(); }
 }
+
+// ---------- Recadrage précis (champs numériques de la barre d'outils) ----------
+export function updateCropFields(){
+  const r=state.cropRect; if(!r) return;
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el && document.activeElement!==el) el.value=v; };
+  set("cropX",r.x); set("cropY",r.y); set("cropW",r.w); set("cropH",r.h);
+}
+function cropFieldsToRect(){
+  const x=Math.max(0,Math.min(state.W-1,Math.round(+document.getElementById("cropX").value||0)));
+  const y=Math.max(0,Math.min(state.H-1,Math.round(+document.getElementById("cropY").value||0)));
+  const w=Math.max(1,Math.min(state.W-x,Math.round(+document.getElementById("cropW").value||1)));
+  const h=Math.max(1,Math.min(state.H-y,Math.round(+document.getElementById("cropH").value||1)));
+  state.cropRect={x,y,w,h}; render();
+}
+["cropX","cropY","cropW","cropH"].forEach(id=>document.getElementById(id).addEventListener("change",cropFieldsToRect));
+document.getElementById("cropApply").onclick=()=>{
+  if(!state.cropRect) return;
+  applyCrop(state.cropRect.x,state.cropRect.y,state.cropRect.w,state.cropRect.h);
+  state.cropRect=null; setTool("move");
+};
 
 // ---------- Choix de la forme active de l'outil Forme ----------
 const SHAPE_KINDS=[
@@ -461,6 +483,29 @@ makeLayerDrop(document.getElementById("delLayerBtn"), i=>{ const L=state.layers[
 document.getElementById("clearLayer").onclick=()=>{ const L=state.layers[state.active]; if(L.img) return;
   if(L.locked){ showToast("Calque verrouillé — déverrouille-le dans ses options (⚙).",{type:"warn"}); return; }
   snapshot(); L.data.fill(null); L.ox=0; L.oy=0; render(); buildLayers(); };
+// ---------- Effets rapides sur le calque actif ----------
+function recolorMap(L,mapHex){
+  if(L.text){ L.text.color=mapHex(L.text.color); reRasterTextLayer(L); return; }
+  for(let i=0;i<L.data.length;i++){ const c=L.data[i]; if(c!==null) L.data[i]=mapHex(c); }
+}
+document.getElementById("invertLayer").onclick=()=>{ const L=state.layers[state.active]; if(L.img) return;
+  if(L.locked){ showToast("Calque verrouillé — déverrouille-le dans ses options (⚙).",{type:"warn"}); return; }
+  if(!L.text && !L.data.some(v=>v!==null)){ setHint("Calque vide : rien à inverser."); return; }
+  snapshot();
+  recolorMap(L, c=>{ const [r,g,b]=hexToRgb(c); return "#"+[255-r,255-g,255-b].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); });
+  state.thumbsDirty=true; render(); buildLayers();
+  showToast("Couleurs inversées.",{type:"success"}); };
+document.getElementById("snapLayerPalette").onclick=()=>{ const L=state.layers[state.active]; if(L.img) return;
+  if(L.locked){ showToast("Calque verrouillé — déverrouille-le dans ses options (⚙).",{type:"warn"}); return; }
+  if(!L.text && !L.data.some(v=>v!==null)){ setHint("Calque vide : rien à reposer sur la palette."); return; }
+  const palHex=PALETTE.concat(state.customColors), pal=palHex.map(hexToRgb);
+  snapshot();
+  recolorMap(L, c=>{ if(palHex.includes(c)) return c;
+    const [r,g,b]=hexToRgb(c); let best=0,bd=1e9;
+    for(let p=0;p<pal.length;p++){ const dr=r-pal[p][0],dg=g-pal[p][1],db=b-pal[p][2], dd=dr*dr+dg*dg+db*db; if(dd<bd){bd=dd;best=p;} }
+    return palHex[best]; });
+  state.thumbsDirty=true; render(); buildLayers();
+  showToast("Couleurs reposées sur la palette du fichier.",{type:"success"}); };
 document.getElementById("mergeLayer").onclick=()=>{ if(state.activeShape) bakeShape();
   let bi=state.active-1; while(bi>=0 && state.layers[bi].isGroup) bi--;
   if(bi<0){ setHint("Aucun calque en dessous où fusionner."); return; }
@@ -694,6 +739,7 @@ export function resize(w,h){
   });
   state.W=w;state.H=h;
   state.active=Math.min(state.active,state.layers.length-1);
+  syncPresetToSize();
   history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();
 }

@@ -333,7 +333,12 @@
         <button class="menu-item" id="miImportImg" data-close>Importer une image (calque)…</button>
         <input type="file" id="imgFile" accept="image/*" hidden>
         <div class="menu-sep"></div>
-        <div class="menu-label">Exporter</div>
+        <button class="menu-item" id="prefsBtn" data-close>Préférences</button>
+      </div>
+    </div>
+    <div class="menu-root">
+      <button class="menu-btn" data-menu="export">Exporter</button>
+      <div class="menu" id="menu-export">
         <div class="menu-field"><span>Échelle d'export</span> ×<input type="number" id="expScale" min="1" max="30" value="15"></div>
         <button class="menu-item" id="expSVG" data-close>SVG (impression)</button>
         <button class="menu-item" id="expPNG" data-close>PNG</button>
@@ -354,8 +359,6 @@
         <button class="menu-item" id="expPalette" data-close>Exporter la palette…</button>
         <button class="menu-item" id="impPaletteBtn" data-close>Importer une palette…</button>
         <input type="file" id="impPaletteFile" accept=".json,application/json" hidden>
-        <div class="menu-sep"></div>
-        <button class="menu-item" id="prefsBtn" data-close>Préférences</button>
       </div>
     </div>
     <div class="menu-root">
@@ -403,6 +406,8 @@
         <button class="menu-item" id="dupLayer" data-close>Dupliquer</button>
         <button class="menu-item" id="transformLayer" data-close>Transformer… (Ctrl/⌘T)</button>
         <button class="menu-item" id="pixelizeLayer" data-close>Pixelliser l'image (sur la palette)</button>
+        <button class="menu-item" id="invertLayer" data-close>Inverser les couleurs</button>
+        <button class="menu-item" id="snapLayerPalette" data-close>Reposer sur la palette</button>
         <button class="menu-item" id="clearLayer" data-close>Vider</button>
         <div class="menu-sep"></div>
         <button class="menu-item" id="mergeLayer" data-close>Fusionner vers le bas</button>
@@ -430,6 +435,13 @@
     </select>
   </div>
   <label class="check" id="optWand"><input type="checkbox" id="wandContiguous" checked> Pixels contigus uniquement</label>
+  <div class="row" id="optCrop">
+    X <input type="number" id="cropX" min="0" style="width:56px">
+    Y <input type="number" id="cropY" min="0" style="width:56px">
+    L <input type="number" id="cropW" min="1" style="width:56px">
+    H <input type="number" id="cropH" min="1" style="width:56px">
+    <button class="mini" id="cropApply">Rogner</button>
+  </div>
   <div id="textOpts" hidden>
     <div class="row">Police
       <select id="textFont" style="flex:1">
@@ -599,6 +611,24 @@
       </div>
     </div>
     <div class="foot"><button class="mini" id="fxResetBtn">Réinitialiser les effets</button><button class="menu-btn active" id="fxOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Terminé</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="pixelizeModal">
+  <div class="modal" style="width:min(380px,92vw)" role="dialog" aria-label="Pixelliser sur la palette">
+    <header><h2>Pixelliser sur la palette</h2><button class="modal-x" id="pixelizeClose" title="Fermer" aria-label="Fermer">×</button></header>
+    <div class="body">
+      <div class="pref"><div class="lbl">Taille de bloc<small>Plus grand = moins de détail, effet plus "gros pixels"</small></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="range" id="pxBlock" min="1" max="16" value="4">
+          <span id="pxBlockV" class="mini" style="opacity:.7;min-width:34px;text-align:center">4 px</span></div></div>
+      <div class="pref"><div class="lbl">Seuil de transparence<small>Zones trop transparentes de la source ignorées</small></div>
+        <input type="range" id="pxAlpha" min="0" max="255" value="128"></div>
+      <div class="pref"><div class="lbl">Tramage (dithering)<small>Simule des teintes intermédiaires avec la palette</small></div>
+        <label class="switch"><input type="checkbox" id="pxDither"><span class="sl"></span></label></div>
+      <p class="note">Utilise la palette du fichier (couleurs de base + couleurs ajoutées). Le résultat est ajouté en nouveau calque, le calque image d'origine n'est pas modifié.</p>
+    </div>
+    <div class="foot"><button class="mini" id="pixelizeCancel">Annuler</button><button class="menu-btn active" id="pixelizeOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Pixelliser</button></div>
   </div>
 </div>
 

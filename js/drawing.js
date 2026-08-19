@@ -87,6 +87,7 @@ export function pointInPoly(px,py,vs){
 export function floodFill(x,y,col){
   const L=state.layers[state.active]; const targ=layerAt(L,x,y);
   if(targ===col) return;
+  if(L.alphaLock && targ===null){ setHint("Transparence verrouillée — clique sur un pixel déjà peint"); return; }
   const seen=new Uint8Array(state.W*state.H); const st=[[x,y]];
   while(st.length){
     const [cx,cy]=st.pop(); if(cx<0||cy<0||cx>=state.W||cy>=state.H) continue;

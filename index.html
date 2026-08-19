@@ -340,6 +340,7 @@
         <button class="menu-item" id="expJPG" data-close>JPG (sRGB)</button>
         <button class="menu-item" id="expAscii" data-close>ASCII art (.txt)</button>
         <button class="menu-item" id="expGrid" data-close>Grille de couleurs (.txt)</button>
+        <button class="menu-item" id="expSpriteSheet" data-close>Planche de sprites (PNG, toutes les frames)</button>
         <div class="menu-sep"></div>
         <div hidden>
           <div class="menu-label">Exporter un lot (.pixel → .zip)</div>
@@ -560,6 +561,8 @@
         <input type="range" id="fxOpacity" min="0" max="100" value="100"></div>
       <div class="pref"><div class="lbl">Verrouiller<small>Empêche toute modification du contenu</small></div>
         <label class="switch"><input type="checkbox" id="fxLock"><span class="sl"></span></label></div>
+      <div class="pref"><div class="lbl">Verrouiller la transparence<small>Dessiner ne fait que recolorer les pixels déjà peints</small></div>
+        <label class="switch"><input type="checkbox" id="fxAlphaLock"><span class="sl"></span></label></div>
       <div class="pref"><div class="lbl">Isoler<small>Masque temporairement les autres calques (vue seulement)</small></div>
         <label class="switch"><input type="checkbox" id="fxSolo"><span class="sl"></span></label></div>
       <div class="pref"><div class="lbl">Couleur<small>Recolore tout le calque (texte inclus)</small></div>

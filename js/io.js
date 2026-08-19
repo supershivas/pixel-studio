@@ -53,6 +53,24 @@ document.getElementById("expSVG").onclick=()=>{ if(state.activeShape) bakeShape(
   download("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svgString(state.layers,s)),`pixel_${state.W}x${state.H}.svg`);
   showToast("SVG exporté.",{type:"success"}); };
 
+// ---------- Export planche de sprites (PNG, toutes les frames en grille) ----------
+document.getElementById("expSpriteSheet").onclick=()=>{
+  if(state.activeShape) bakeShape();
+  const frames=state.frames;
+  if(!frames || frames.length<2){ showToast("Il faut au moins 2 frames pour une planche de sprites.",{type:"warn"}); return; }
+  const s=+document.getElementById("expScale").value||6;
+  const cols=Math.ceil(Math.sqrt(frames.length)), rows=Math.ceil(frames.length/cols);
+  const cw=state.W*s, ch=state.H*s;
+  const sheet=document.createElement("canvas"); sheet.width=cw*cols; sheet.height=ch*rows;
+  const sctx=sheet.getContext("2d"); sctx.imageSmoothingEnabled=false;
+  frames.forEach((f,i)=>{
+    const layers = i===state.activeFrame ? state.layers : f.layers;
+    sctx.drawImage(flattenCanvas(layers,s,false), (i%cols)*cw, Math.floor(i/cols)*ch);
+  });
+  download(sheet.toDataURL("image/png"), `spritesheet_${state.W}x${state.H}_${frames.length}f.png`);
+  showToast(`Planche de sprites exportée (${cols}×${rows}, ${frames.length} frames).`,{type:"success"});
+};
+
 // ---------- Export texte : ASCII art (niveaux de gris) et grille de couleurs hexa ----------
 const ASCII_RAMP=" .:-=+*#%@";
 function asciiArt(){

@@ -10,11 +10,17 @@ export const inBounds = (x,y)=> x>=0 && y>=0 && x<state.W && y<state.H;
 export function hexToRgb(h){ h=h.replace("#",""); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
 
 export function newLayer(name){
-  return { id: state.layerSeq++, name: name||("Calque "+state.layerSeq), visible:true, opacity:1, locked:false, data:new Array(state.W*state.H).fill(null), img:null, _imgEl:null, ox:0, oy:0, blend:"normal" };
+  return { id: state.layerSeq++, name: name||("Calque "+state.layerSeq), visible:true, opacity:1, locked:false, alphaLock:false, data:new Array(state.W*state.H).fill(null), img:null, _imgEl:null, ox:0, oy:0, blend:"normal" };
 }
 // accès au contenu d'un calque en coordonnées canevas (le décalage ox/oy préserve le hors-cadre)
 export function layerAt(L,gx,gy){ const dx=gx-(L.ox||0), dy=gy-(L.oy||0); if(dx<0||dy<0||dx>=state.W||dy>=state.H) return null; return L.data[dy*state.W+dx]; }
-export function setLayerAt(L,gx,gy,col){ const dx=gx-(L.ox||0), dy=gy-(L.oy||0); if(dx<0||dy<0||dx>=state.W||dy>=state.H) return; L.data[dy*state.W+dx]=col; }
+// avec la transparence verrouillée, on peut recolorer un pixel déjà peint mais pas en ajouter
+// ni en effacer — point de passage unique, donc respecté par le crayon, la gomme, le pot,
+// les formes, le texte et la symétrie de dessin
+export function setLayerAt(L,gx,gy,col){ const dx=gx-(L.ox||0), dy=gy-(L.oy||0); if(dx<0||dy<0||dx>=state.W||dy>=state.H) return;
+  const i=dy*state.W+dx;
+  if(L.alphaLock && (col===null || L.data[i]===null)) return;
+  L.data[i]=col; }
 export function bakeOffset(L){ if(L.img || ((L.ox||0)===0 && (L.oy||0)===0)) return;
   const nd=new Array(state.W*state.H).fill(null);
   for(let gy=0;gy<state.H;gy++) for(let gx=0;gx<state.W;gx++){ const c=layerAt(L,gx,gy); if(c!==null) nd[gy*state.W+gx]=c; }
@@ -32,7 +38,7 @@ export function cloneLayers(layers){
     ({...L, data:L.data?L.data.slice():null, fx:L.fx?JSON.parse(JSON.stringify(L.fx)):null, text:L.text?{...L.text}:null}));
 }
 export function encodeLayers(layers){
-  return layers.map(L=>({ name:L.name, visible:L.visible, opacity:L.opacity, locked:!!L.locked,
+  return layers.map(L=>({ name:L.name, visible:L.visible, opacity:L.opacity, locked:!!L.locked, alphaLock:!!L.alphaLock,
     data:L.img||L.isGroup?null:L.data, img:L.img?{dataURL:L.img.dataURL}:null, ox:L.ox||0, oy:L.oy||0,
     text:L.text||null, fx:L.fx||null, blend:L.blend||"normal",
     isGroup:!!L.isGroup, expanded:L.isGroup?(L.expanded!==false):undefined,
@@ -44,7 +50,7 @@ export function decodeLayers(raw){
     if(L.img && L.img.dataURL){ const IL=newImageLayer(L.img.dataURL, L.name||"Image");
       IL.visible=L.visible!==false; if(typeof L.opacity==="number") IL.opacity=L.opacity; IL.ox=L.ox||0; IL.oy=L.oy||0; IL.blend=L.blend||"normal"; IL.locked=!!L.locked; return IL; }
     return { id:state.layerSeq++, name:L.name||"Calque", visible:L.visible!==false,
-      opacity:typeof L.opacity==="number"?L.opacity:1, locked:!!L.locked,
+      opacity:typeof L.opacity==="number"?L.opacity:1, locked:!!L.locked, alphaLock:!!L.alphaLock,
       data:(Array.isArray(L.data)&&L.data.length===state.W*state.H)?L.data.slice():new Array(state.W*state.H).fill(null), img:null,_imgEl:null, ox:L.ox||0, oy:L.oy||0, text:L.text||null, fx:L.fx||null, blend:L.blend||"normal" };
   });
   raw.forEach((L,i)=>{ if(typeof L.group==="number" && raw[L.group] && raw[L.group].isGroup) layers[i].groupId=layers[L.group].id; });

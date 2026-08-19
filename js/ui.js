@@ -208,6 +208,8 @@ function openFxModal(L){
   document.getElementById("fxBlend").value=L.blend||"normal";
   document.getElementById("fxOpacity").value=Math.round(L.opacity*100);
   document.getElementById("fxLock").checked=!!L.locked;
+  document.getElementById("fxAlphaLock").checked=!!L.alphaLock;
+  document.getElementById("fxAlphaLock").disabled=isImg||L.locked;
   document.getElementById("fxSolo").checked=isSolo(L.id);
   ["fxColor","fxStrokeOn","fxStrokeW","fxStrokeColor","fxShadowOn","fxShadowDX","fxShadowDY","fxShadowColor","fxResetBtn"]
     .forEach(id=>{ document.getElementById(id).disabled=isImg||L.locked; });
@@ -225,6 +227,7 @@ function openFxModal(L){
 document.getElementById("fxBlend").onchange=e=>{ if(fxLayer){ fxLayer.blend=e.target.value; fxApply(); } };
 document.getElementById("fxOpacity").oninput=e=>{ if(fxLayer){ fxLayer.opacity=+e.target.value/100; fxApply(); } };
 document.getElementById("fxLock").onchange=e=>{ if(fxLayer){ fxLayer.locked=e.target.checked; openFxModal(fxLayer); fxApply(); } };
+document.getElementById("fxAlphaLock").onchange=e=>{ if(fxLayer){ fxLayer.alphaLock=e.target.checked; fxApply(); } };
 document.getElementById("fxSolo").onchange=e=>{ if(fxLayer){ setSolo(fxLayer.id); render(); buildLayers(); } };
 function mirrorLayerData(L,axis){
   if(!L || L.img || L.text || L.locked) return;
@@ -364,6 +367,7 @@ export function buildLayers(){
     const badges=[];
     if(L.img){ const b=document.createElement("span"); b.className="imgbadge"; b.textContent="IMG"; b.title="Calque image (référence, non exporté)"; badges.push(b); }
     if(L.locked){ const b=document.createElement("span"); b.className="imgbadge lockbadge"; b.textContent="🔒"; b.title="Calque verrouillé"; badges.push(b); }
+    else if(L.alphaLock){ const b=document.createElement("span"); b.className="imgbadge lockbadge"; b.textContent="α"; b.title="Transparence verrouillée"; badges.push(b); }
     const opts=document.createElement("button"); opts.className="lopts"; opts.title="Options du calque (opacité, fusion, verrouillage, isolation, contour, ombre…)";
     opts.textContent="⚙"; opts.addEventListener("click",e=>{ e.stopPropagation(); openFxModal(L); });
     row.append(grip,vis,thumb,col,...badges,opts);

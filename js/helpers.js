@@ -151,7 +151,7 @@ export function ensureChecker(){
   const key=state.W+"x"+state.H+"@"+state.zoom+(prefs.checker?"c":"p");
   if(key===state.checkerKey && checkerCv.width===state.W*state.zoom) return;
   state.checkerKey=key; checkerCv.width=state.W*state.zoom; checkerCv.height=state.H*state.zoom;
-  if(prefs.checker){ const a="#243154", b="#1b2743", c=state.zoom;
+  if(prefs.checker){ const a="#3d5a86", b="#aab8d4", c=state.zoom;
     for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){ chctx.fillStyle=((x+y)&1)?a:b; chctx.fillRect(x*c,y*c,c,c); } }
   else { chctx.fillStyle="#1e2b45"; chctx.fillRect(0,0,state.W*state.zoom,state.H*state.zoom); }
 }

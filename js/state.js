@@ -17,6 +17,7 @@ export const state = {
   brush: 1,
   strokeWidth: 1,
   tool: "pencil",
+  shapeKind: "rect",   // forme active de l'outil Forme : line, rect, ellipse, star, heart, triangle, diamond
   fillShape: false,
   mirror: "none",
   guides: null,    // {bleed,safety} en pixels natifs, ou null

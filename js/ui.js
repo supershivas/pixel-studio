@@ -17,18 +17,15 @@ const TOOLS=[
     svg:'<path d="M7 3v14a1 1 0 0 0 1 1h14" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M17 21V7a1 1 0 0 0-1-1H3" fill="none" stroke="currentColor" stroke-width="1.8"/>'},
   {sep:true},
   {id:"pencil",  k:"B", label:"Crayon",   svg:'<path d="M4 20l3-1 11-11-2-2L5 17l-1 3z" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
-  {id:"eraser",  k:"E", label:"Gomme",    svg:'<rect x="6" y="11" width="12" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 11l4-4 5 5-3 3" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
-  {id:"fill",    k:"G", label:"Pot",      svg:'<path d="M6 12l6-6 6 6-6 6z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M18 15c1 1.5 1 3 0 3s-1-1.5 0-3z" fill="currentColor"/>'},
-  {id:"eyedropper",k:"I",label:"Pipette", svg:'<path d="M4 20l2 0 8-8 2 2-8 8 0 2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M14 6l4 4 1-1a2 2 0 00-3-3z" fill="currentColor"/>'},
+  {id:"eraser",  k:"E", label:"Gomme",
+    svg:'<g transform="rotate(-40 12 12)"><rect x="5" y="9" width="14" height="8" rx="1.5" fill="currentColor"/><rect x="5" y="9" width="7" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="5" y="9" width="14" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/></g>'},
+  {id:"fill",    k:"G", label:"Pot de peinture",
+    svg:'<path d="M8.5 3.5l9 9-6.5 6.5a4.6 4.6 0 0 1-6.5-6.5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 11.5h11" stroke="currentColor" stroke-width="1.6"/><path d="M17 5l3.3 3.3" stroke="currentColor" stroke-width="1.6"/><circle cx="19.5" cy="18.5" r="2.2" fill="currentColor"/>'},
+  {id:"eyedropper",k:"I",label:"Pipette (prélever une couleur)",
+    svg:'<path d="M14.5 3.5a2.5 2.5 0 0 1 3.5 3.5l-1.3 1.3-3.5-3.5z" fill="currentColor"/><path d="M15.5 7.5L7 16l-1 4 4-1 8.5-8.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 20l-2 2" stroke="currentColor" stroke-width="1.7"/>'},
   {sep:true},
-  {id:"line",    k:"L", label:"Ligne",    svg:'<path d="M5 19L19 5" stroke="currentColor" stroke-width="1.8"/>'},
-  {id:"rect",    k:"R", label:"Rectangle",svg:'<rect x="5" y="7" width="14" height="10" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
-  {id:"ellipse", k:"O", label:"Ellipse",  svg:'<ellipse cx="12" cy="12" rx="7" ry="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
-  {sep:true},
-  {id:"star",    k:"S", label:"Étoile",   svg:'<path d="M12 4l2.3 4.8 5.3.7-3.9 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3L4.4 9.5l5.3-.7z" fill="currentColor"/>'},
-  {id:"heart",   k:"H", label:"Cœur",     svg:'<path d="M12 19S5 14.5 5 9.6C5 7 7 5.5 9 6c1.3.3 2.4 1.4 3 2.4C12.6 7.4 13.7 6.3 15 6c2-.5 4 1 4 3.6 0 4.9-7 9.4-7 9.4z" fill="currentColor"/>'},
-  {id:"triangle",k:"U", label:"Triangle", svg:'<path d="M12 5l7 13H5z" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
-  {id:"diamond", k:"D", label:"Losange",  svg:'<path d="M12 4l7 8-7 8-7-8z" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
+  {id:"shape",   k:"F", label:"Forme (ligne, rectangle, ellipse, étoile, cœur, triangle, losange)",
+    svg:'<rect x="3.5" y="3.5" width="11" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.5" cy="16.5" r="5.3" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
   {sep:true},
   {id:"text",    k:"T", label:"Texte", svg:'<path d="M5 6h14M12 6v13M9 19h6" fill="none" stroke="currentColor" stroke-width="1.8"/>'},
 ];
@@ -43,22 +40,48 @@ TOOLS.forEach(t=>{
 });
 // options d'outil affichées dans la barre horizontale, selon l'outil actif
 const TOOL_OPT_GROUPS={
-  optBrush:  new Set(["pencil","eraser"]),
-  optFill:   new Set(["rect","ellipse","triangle","diamond","star","heart"]),
-  optStroke: new Set(["line","rect","ellipse","triangle","diamond","star","heart"]),
-  optMirror: new Set(["pencil","eraser","line","rect","ellipse","triangle","diamond","star","heart"]),
-  optWand:   new Set(["wand"]),
-  textOpts:  new Set(["text"]),
+  optBrush:     new Set(["pencil","eraser"]),
+  optShapeKind: new Set(["shape"]),
+  optFill:      new Set(["shape"]),
+  optStroke:    new Set(["shape"]),
+  optMirror:    new Set(["pencil","eraser","shape"]),
+  optWand:      new Set(["wand"]),
+  textOpts:     new Set(["text"]),
 };
 function updateToolOpts(id){
   let anyShown=false;
   for(const groupId in TOOL_OPT_GROUPS){
-    const shown=TOOL_OPT_GROUPS[groupId].has(id);
+    let shown=TOOL_OPT_GROUPS[groupId].has(id);
+    if(groupId==="optFill" && id==="shape" && state.shapeKind==="line") shown=false;  // une ligne ne se "remplit" pas
     document.getElementById(groupId).hidden=!shown;
     if(shown) anyShown=true;
   }
   document.getElementById("optEmpty").hidden=anyShown;
 }
+
+// ---------- Choix de la forme active de l'outil Forme ----------
+const SHAPE_KINDS=[
+  {id:"line",    label:"Ligne",    svg:'<path d="M5 19L19 5" stroke="currentColor" stroke-width="1.8"/>'},
+  {id:"rect",    label:"Rectangle",svg:'<rect x="5" y="7" width="14" height="10" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
+  {id:"ellipse", label:"Ellipse",  svg:'<ellipse cx="12" cy="12" rx="7" ry="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
+  {id:"star",    label:"Étoile",   svg:'<path d="M12 4l2.3 4.8 5.3.7-3.9 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3L4.4 9.5l5.3-.7z" fill="currentColor"/>'},
+  {id:"heart",   label:"Cœur",     svg:'<path d="M12 19S5 14.5 5 9.6C5 7 7 5.5 9 6c1.3.3 2.4 1.4 3 2.4C12.6 7.4 13.7 6.3 15 6c2-.5 4 1 4 3.6 0 4.9-7 9.4-7 9.4z" fill="currentColor"/>'},
+  {id:"triangle",label:"Triangle", svg:'<path d="M12 5l7 13H5z" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
+  {id:"diamond", label:"Losange",  svg:'<path d="M12 4l7 8-7 8-7-8z" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
+];
+const shapeKindPicker=document.getElementById("shapeKindPicker");
+shapeKindPicker.innerHTML="";
+SHAPE_KINDS.forEach(sk=>{
+  const b=document.createElement("button"); b.type="button"; b.className="skind"+(sk.id===state.shapeKind?" active":"");
+  b.title=sk.label; b.innerHTML='<svg viewBox="0 0 24 24">'+sk.svg+'</svg>';
+  b.addEventListener("click",()=>{
+    if(state.activeShape) bakeShape();
+    state.shapeKind=sk.id;
+    [...shapeKindPicker.children].forEach(el=>el.classList.remove("active")); b.classList.add("active");
+    updateToolOpts(state.tool);
+  });
+  shapeKindPicker.appendChild(b);
+});
 updateToolOpts(state.tool);
 export function setTool(id){
   if(state.activeShape) bakeShape();

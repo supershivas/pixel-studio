@@ -16,7 +16,7 @@ export function makeShape(x0,y0,x1,y1,square){
   let w=Math.max(1,Math.abs(x1-x0)+1), h=Math.max(1,Math.abs(y1-y0)+1);
   if(square){ const s=Math.max(w,h); w=h=s; }
   const cx=(x0+x1)/2+0.5, cy=(y0+y1)/2+0.5;
-  return { type:state.tool, cx, cy, w, h, rot:0, skewX:0, skewY:0, filled:state.fillShape, strokeW:state.strokeWidth, color:state.color };
+  return { type:state.shapeKind, cx, cy, w, h, rot:0, skewX:0, skewY:0, filled:state.fillShape, strokeW:state.strokeWidth, color:state.color };
 }
 export function line_immediate_commit(x0,y0,x1,y1){ const d=state.layers[state.active].data;
   line(x0,y0,x1,y1,(px,py)=>stamp(px,py,state.color,state.layers[state.active])); }
@@ -53,10 +53,10 @@ view.addEventListener("pointerdown",e=>{
     const img=compositeToImageData(); const j=idx(x,y)*4;
     if(img.data[j+3]>0){ const h="#"+[img.data[j],img.data[j+1],img.data[j+2]].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); setColor(h); }
   }
-  else if(state.tool==="line"){ snapshot(); drawing=true; state.previewCells=new Map(); line(x,y,x,y,stampPreview); render(); }
+  else if(state.tool==="shape" && state.shapeKind==="line"){ snapshot(); drawing=true; state.previewCells=new Map(); line(x,y,x,y,stampPreview); render(); }
   else if(state.tool==="wand"){ selectSimilar(x,y,state.wandContiguous); setTool("select"); render(); }
   else if(state.tool==="crop"){ state.cropRect={x,y,w:1,h:1}; state.cropDrag={x0:x,y0:y}; drawing=true; render(); }
-  else if(TRANSFORM_TOOLS.has(state.tool)){ creating=true; drawing=true; state.activeShape=makeShape(x,y,x,y); shapeToPreview(); render(); }
+  else if(state.tool==="shape" && TRANSFORM_TOOLS.has(state.shapeKind)){ creating=true; drawing=true; state.activeShape=makeShape(x,y,x,y); shapeToPreview(); render(); }
   else if(state.tool==="text"){ const hitL=hitTextLayer(x,y);
     if(hitL){ state.active=state.layers.indexOf(hitL); buildLayers(); startEditTextLayer(hitL,e.clientX,e.clientY); }
     else openCanvasText(x,y,e.clientX,e.clientY); }
@@ -114,7 +114,7 @@ view.addEventListener("pointermove",e=>{
 
   if(state.tool==="pencil"){ line(lastX,lastY,x,y,(px,py)=>stamp(px,py,state.color,state.layers[state.active])); lastX=x;lastY=y; render(); }
   else if(state.tool==="eraser"){ line(lastX,lastY,x,y,(px,py)=>stamp(px,py,null,state.layers[state.active])); lastX=x;lastY=y; render(); }
-  else if(state.tool==="line"){ state.previewCells=new Map(); line(startX,startY,x,y,stampPreview); render(); }
+  else if(state.tool==="shape" && state.shapeKind==="line"){ state.previewCells=new Map(); line(startX,startY,x,y,stampPreview); render(); }
   setHint(inBounds(x,y)?(x+" , "+y):"");
 });
 
@@ -130,7 +130,7 @@ view.addEventListener("pointerup",e=>{
     if(state.activeShape && state.activeShape.w<=1 && state.activeShape.h<=1){ state.activeShape=null; state.previewCells=null; render(); setHint(""); return; }
     shapeToPreview(); render(); setHint("Entrée pour valider · Échap pour annuler"); return; }
   if(state.txOp){ drawing=false; state.txOp=null; return; }
-  if(state.tool==="line"){ line_immediate_commit(startX,startY,x,y); state.previewCells=null; }
+  if(state.tool==="shape" && state.shapeKind==="line"){ line_immediate_commit(startX,startY,x,y); state.previewCells=null; }
   drawing=false; state.thumbsDirty=true; render();
 });
 view.addEventListener("pointerleave",()=>{ if(state.tool==="text" && state.previewCells && !state.activeShape && !state.textEditing){ state.previewCells=null; render(); } });
@@ -182,7 +182,7 @@ window.addEventListener("keydown",e=>{
   if((e.key.startsWith("Arrow")) && (state.sel||state.floatSel)){ e.preventDefault(); const n=e.shiftKey?10:1;
     if(e.key==="ArrowLeft") nudgeSelection(-n,0); else if(e.key==="ArrowRight") nudgeSelection(n,0);
     else if(e.key==="ArrowUp") nudgeSelection(0,-n); else if(e.key==="ArrowDown") nudgeSelection(0,n); return; }
-  const map={v:"move",m:"select",w:"wand",c:"crop",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",l:"line",r:"rect",o:"ellipse",s:"star",h:"heart",u:"triangle",d:"diamond",t:"text"};
+  const map={v:"move",m:"select",w:"wand",c:"crop",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",f:"shape",t:"text"};
   const k=e.key.toLowerCase();
   if(e.ctrlKey||e.metaKey||e.altKey) return;   // laisser les raccourcis navigateur
   if(map[k]){ e.preventDefault(); setTool(map[k]); return; }

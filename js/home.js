@@ -65,8 +65,13 @@ function newProjectFromImage(file){
     const dataURL=rd.result;
     const probe=new Image();
     probe.onload=()=>{
-      const w=Math.max(8,Math.min(512,probe.naturalWidth||64));
-      const h=Math.max(8,Math.min(512,probe.naturalHeight||64));
+      const nw=probe.naturalWidth||64, nh=probe.naturalHeight||64;
+      // même facteur d'échelle sur les deux axes pour ne pas déformer l'image (un simple
+      // clamp indépendant par axe écraserait l'aspect ratio des photos, presque toujours
+      // plus larges que 512px)
+      const scale=Math.min(1, 512/nw, 512/nh);
+      const w=Math.max(8,Math.min(512,Math.round(nw*scale)));
+      const h=Math.max(8,Math.min(512,Math.round(nh*scale)));
       state.projectId=null;
       state.activeShape=null; state.txOp=null; state.previewCells=null; state.sel=null; state.floatSel=null;
       state.guides=null; state.W=w; state.H=h; state.layerSeq=1;

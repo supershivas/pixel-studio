@@ -174,18 +174,52 @@ document.getElementById("saveProj").onclick=()=>{
   const url=URL.createObjectURL(blob);
   download(url,`pixel_${state.W}x${state.H}_${stamp2()}.pixel`);
   setTimeout(()=>URL.revokeObjectURL(url),3000);
+  pushRecent();
   showToast("Projet enregistré.",{type:"success"});
 };
 document.getElementById("openProj").onclick=()=>document.getElementById("fileInput").click();
 document.getElementById("fileInput").onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   const rd=new FileReader();
-  rd.onload=()=>{ try{ loadProject(JSON.parse(rd.result)); showToast("Projet chargé.",{type:"success"}); }
+  rd.onload=()=>{ try{ state.projectId=null; loadProject(JSON.parse(rd.result)); pushRecent(); showToast("Projet chargé.",{type:"success"}); }
     catch(err){ showToast("Fichier .eu-pix illisible : "+err.message,{type:"error"}); } };
   rd.onerror=()=>showToast("Lecture du fichier impossible.",{type:"error"});
   rd.readAsText(f);
   e.target.value="";
 };
+
+// ---------- Projets récents (localStorage) ----------
+// Chaque entrée embarque le projet complet (comme l'autosauvegarde) pour pouvoir le
+// rouvrir sans redemander le fichier d'origine. Mis à jour aux points de sauvegarde
+// explicites (Enregistrer, Ouvrir, Fermer le projet) — jamais à chaque frappe.
+const RECENTS_KEY="eupix.recents", RECENTS_MAX=8;
+function makeThumb(){
+  const src=flattenCanvas(state.layers,1,false);
+  const maxDim=120, sc=Math.min(1,maxDim/Math.max(state.W,state.H));
+  const tw=Math.max(1,Math.round(state.W*sc)), th=Math.max(1,Math.round(state.H*sc));
+  const cv=document.createElement("canvas"); cv.width=tw; cv.height=th;
+  const cx=cv.getContext("2d"); cx.imageSmoothingEnabled=true;
+  cx.drawImage(src,0,0,tw,th);
+  return cv.toDataURL("image/png");
+}
+export function getRecents(){
+  try{ const s=localStorage.getItem(RECENTS_KEY); const list=s?JSON.parse(s):[]; return Array.isArray(list)?list:[]; }
+  catch(_){ return []; }
+}
+export function pushRecent(){
+  try{
+    if(!state.projectId) state.projectId = (crypto.randomUUID ? crypto.randomUUID() : "id"+Date.now()+Math.random().toString(16).slice(2));
+    const entry={ id:state.projectId, name:`Carte ${state.W}×${state.H}`, date:Date.now(), w:state.W, h:state.H,
+      thumb:makeThumb(), proj:buildProjectObject() };
+    let list=getRecents().filter(r=>r.id!==state.projectId);
+    list.unshift(entry);
+    if(list.length>RECENTS_MAX) list=list.slice(0,RECENTS_MAX);
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(list));
+  }catch(_){}
+}
+export function removeRecent(id){
+  try{ localStorage.setItem(RECENTS_KEY, JSON.stringify(getRecents().filter(r=>r.id!==id))); }catch(_){}
+}
 // ---------- Palette : import / export (JSON, couleurs personnalisées seulement) ----------
 document.getElementById("expPalette").onclick=()=>{
   if(!state.customColors.length){ showToast("Aucune couleur personnalisée à exporter.",{type:"warn"}); return; }

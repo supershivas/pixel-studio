@@ -759,13 +759,17 @@ document.querySelectorAll(".menu").forEach(menu=>{
 document.addEventListener("click",closeMenus);
 window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden){ closeColorPop(); return; } if(state.cropRect){ state.cropRect=null; render(); return; } if(state.activeShape){ cancelShape(); return; } if(state.floatSel){ commitFloat(); state.sel=null; render(); return; } if(state.sel){ state.sel=null; render(); return; } if(document.getElementById("confirmModal").classList.contains("open")){ closeConfirm(); return; } closeMenus(); document.getElementById("prefsModal").classList.remove("open"); document.getElementById("sizeModal").classList.remove("open"); document.getElementById("fxModal").classList.remove("open"); } });
 
-document.getElementById("miNew").onclick=()=>{
-  if(prefs.confirm && !confirm("Nouvelle image ? Le travail non enregistré sera perdu.")) return;
+export function resetToBlankProject(){
+  state.projectId=null;
   state.activeShape=null; state.txOp=null; state.previewCells=null; state.sel=null; state.floatSel=null;
   state.layerSeq=1; state.layers=[newLayer("Fond"),newLayer("Dessin")]; state.active=1;
   initFrames();
   history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();
+}
+document.getElementById("miNew").onclick=()=>{
+  if(prefs.confirm && !confirm("Nouvelle image ? Le travail non enregistré sera perdu.")) return;
+  resetToBlankProject();
 };
 
 // ---------- Préférences ----------

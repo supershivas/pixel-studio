@@ -278,6 +278,21 @@
   .toolopts .row input[type=range]{flex:none;width:90px}
   .toolopts .empty{font-size:12px;color:var(--ink-dim);font-style:italic}
   .toolopts .row[hidden],.toolopts .check[hidden]{display:none}
+  .home-modal{width:min(760px,94vw)}
+  .home-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .home-recents{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-top:10px}
+  .home-card{position:relative;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:9px;
+    background:var(--panel-2);border:1px solid var(--line);cursor:pointer}
+  .home-card:hover{border-color:var(--accent-blue)}
+  .home-thumb-wrap{aspect-ratio:1;border-radius:6px;overflow:hidden;display:grid;place-items:center;background:
+    conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/10px 10px}
+  .home-thumb{max-width:100%;max-height:100%;image-rendering:pixelated}
+  .home-card-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .home-card-name{font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .home-card-date{font-size:11px;color:var(--ink-dim);font-family:var(--mono)}
+  .home-card-del{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;padding:0;
+    line-height:1;font-size:13px;background:var(--danger);border-color:var(--danger);color:#fff;display:none}
+  .home-card:hover .home-card-del{display:grid;place-items:center}
   .shapekind-picker{display:flex;gap:4px}
   .skind{width:28px;height:28px;display:grid;place-items:center;border-radius:6px;padding:0;
     background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim)}
@@ -326,9 +341,13 @@
       <button class="menu-btn" data-menu="file">Fichier</button>
       <div class="menu" id="menu-file">
         <button class="menu-item" id="miNew" data-close>Nouvelle image</button>
+        <button class="menu-item" id="miNewFromImage" data-close>Nouvelle image depuis une photo…</button>
+        <input type="file" id="newFromImageFile" accept="image/*" hidden>
         <button class="menu-item" id="openProj" data-close>Ouvrir (.pixel)…</button>
         <button class="menu-item" id="saveProj" data-close>Enregistrer (.pixel)</button>
         <input type="file" id="fileInput" accept=".pixel,.eu-pix,application/json" hidden>
+        <div class="menu-sep"></div>
+        <button class="menu-item" id="miClose" data-close>Fermer le projet (page d'accueil)</button>
         <div class="menu-sep"></div>
         <button class="menu-item" id="miImportImg" data-close>Importer une image (calque)…</button>
         <input type="file" id="imgFile" accept="image/*" hidden>
@@ -611,6 +630,24 @@
       </div>
     </div>
     <div class="foot"><button class="mini" id="fxResetBtn">Réinitialiser les effets</button><button class="menu-btn active" id="fxOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Terminé</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="homeModal">
+  <div class="modal home-modal" role="dialog" aria-label="Page d'accueil">
+    <header><h2>Pixel <b style="color:var(--accent)">Studio</b></h2>
+      <button class="modal-x" id="homeClose" title="Reprendre le projet en cours" aria-label="Fermer">×</button></header>
+    <div class="body">
+      <div class="home-actions">
+        <button class="mini" id="homeNew" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">+ Nouvelle image</button>
+        <button class="mini" id="homeNewFromImage">Depuis une photo…</button>
+        <input type="file" id="homeNewFromImageFile" accept="image/*" hidden>
+        <button class="mini" id="homeOpen">Ouvrir un fichier (.pixel)…</button>
+      </div>
+      <div class="menu-label" style="padding-left:0;margin-top:16px">Projets récents (sur cet appareil)</div>
+      <div class="home-recents" id="homeRecents"></div>
+      <p class="note" id="homeEmptyNote" hidden>Aucun projet récent pour l'instant — enregistre ou ferme un projet pour le retrouver ici.</p>
+    </div>
   </div>
 </div>
 

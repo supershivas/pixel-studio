@@ -43,6 +43,7 @@ export const state = {
   thumbsDirty: true,
 
   customColors: [],
+  projectId: null,   // identifiant transitoire du projet courant, pour mettre à jour (plutôt que dupliquer) son entrée dans les projets récents
 
   previewCells: null, // Map "x,y"->color for in-progress shape
   sel: null, floatSel: null, clipboard: null, selDrag: null,   // sélection rectangulaire / presse-papiers

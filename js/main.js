@@ -6,6 +6,7 @@ import { fitZoom } from "./interaction.js";
 import { setColor, buildLayers, loadPrefs, applyPrefs } from "./ui.js";
 import { restoreAutosaveIfAny, scheduleAutosave } from "./io.js";
 import { initFrames } from "./frames.js";
+import "./home.js";
 import "./modals.js";
 
 // ---------- Init ----------

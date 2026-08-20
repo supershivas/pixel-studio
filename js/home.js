@@ -73,7 +73,7 @@ function newProjectFromImage(file){
       const w=Math.max(8,Math.min(512,Math.round(nw*scale)));
       const h=Math.max(8,Math.min(512,Math.round(nh*scale)));
       state.projectId=null;
-      state.activeShape=null; state.txOp=null; state.previewCells=null; state.sel=null; state.floatSel=null;
+      state.activeShape=null; state.txOp=null; state.previewCells=null; state.sel=null; state.floatSel=null; state.cropRect=null;
       state.guides=null; state.W=w; state.H=h; state.layerSeq=1;
       const bg=newLayer("Fond");
       const imgLayer=newImageLayer(dataURL, (file.name||"Image").replace(/\.[^.]+$/,"").slice(0,20)||"Image");

@@ -255,7 +255,7 @@ export function syncPresetToSize(){
 }
 export function loadProject(p){
   if(!p || (p.format!=="pixel" && p.format!=="eu-pix")) throw new Error("format inattendu");
-  state.sel=null; state.floatSel=null; state.clipboard=null;
+  state.sel=null; state.floatSel=null; state.clipboard=null; state.cropRect=null;
   state.activeShape=null; state.txOp=null; state.previewCells=null;
   state.W=Math.max(8,Math.min(512,p.w|0)); state.H=Math.max(8,Math.min(512,p.h|0));
   state.guides=p.guides||null; state.layerSeq=1;

@@ -67,6 +67,12 @@ export function updateCropFields(){
   const set=(id,v)=>{ const el=document.getElementById(id); if(el && document.activeElement!==el) el.value=v; };
   set("cropX",r.x); set("cropY",r.y); set("cropW",r.w); set("cropH",r.h);
 }
+// à rappeler chaque fois que state.W/state.H changent (redimensionner, pivoter, rogner…) :
+// une zone de recadrage calculée pour l'ancienne taille du canevas n'a plus de sens
+export function invalidateCropForNewSize(){
+  if(state.tool==="crop"){ state.cropRect={x:0,y:0,w:state.W,h:state.H}; updateCropFields(); render(); }
+  else state.cropRect=null;
+}
 function cropFieldsToRect(){
   const x=Math.max(0,Math.min(state.W-1,Math.round(+document.getElementById("cropX").value||0)));
   const y=Math.max(0,Math.min(state.H-1,Math.round(+document.getElementById("cropY").value||0)));
@@ -74,7 +80,7 @@ function cropFieldsToRect(){
   const h=Math.max(1,Math.min(state.H-y,Math.round(+document.getElementById("cropH").value||1)));
   state.cropRect={x,y,w,h}; render();
 }
-["cropX","cropY","cropW","cropH"].forEach(id=>document.getElementById(id).addEventListener("change",cropFieldsToRect));
+["cropX","cropY","cropW","cropH"].forEach(id=>document.getElementById(id).addEventListener("input",cropFieldsToRect));
 document.getElementById("cropApply").onclick=()=>{
   if(!state.cropRect) return;
   applyCrop(state.cropRect.x,state.cropRect.y,state.cropRect.w,state.cropRect.h);
@@ -676,6 +682,7 @@ export function applyCrop(cx,cy,cw,ch){
   state.W=cw; state.H=ch;
   state.active=Math.min(state.active,state.layers.length-1);
   syncPresetToSize();
+  invalidateCropForNewSize();
   history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();
   showToast("Image rognée à "+cw+"×"+ch+".",{type:"success"});
@@ -724,6 +731,7 @@ function transformCanvas(op){
   });
   state.W=nW; state.H=nH;
   syncPresetToSize();
+  invalidateCropForNewSize();
   buildLayers(); fitZoom();
 }
 document.getElementById("rotCW").onclick=()=>transformCanvas("cw");
@@ -748,6 +756,7 @@ export function resize(w,h){
   state.W=w;state.H=h;
   state.active=Math.min(state.active,state.layers.length-1);
   syncPresetToSize();
+  invalidateCropForNewSize();
   history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();
 }
@@ -769,7 +778,7 @@ window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden
 
 export function resetToBlankProject(){
   state.projectId=null;
-  state.activeShape=null; state.txOp=null; state.previewCells=null; state.sel=null; state.floatSel=null;
+  state.activeShape=null; state.txOp=null; state.previewCells=null; state.sel=null; state.floatSel=null; state.cropRect=null;
   state.layerSeq=1; state.layers=[newLayer("Fond"),newLayer("Dessin")]; state.active=1;
   initFrames();
   history.length=0; state.histPtr=-1; snapshot();

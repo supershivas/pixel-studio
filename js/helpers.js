@@ -260,6 +260,10 @@ export function drawGrid(){
 // ---------- Aperçu de l'outil Recadrer (assombrit l'extérieur de la zone gardée) ----------
 function drawCropOverlay(){
   const r=state.cropRect; if(!r) return;
+  // rien à montrer tant que la zone couvre encore tout le canevas (pas de recadrage en cours) :
+  // sinon le contour en pointillés colle exactement au bord de l'image et ressemble à des
+  // poignées parasites
+  if(r.x===0 && r.y===0 && r.w===state.W && r.h===state.H) return;
   const z=state.zoom, W=overlay.width, H=overlay.height;
   const rx=r.x*z, ry=r.y*z, rw=r.w*z, rh=r.h*z;
   octx.save(); octx.fillStyle="rgba(6,10,20,.6)";

@@ -225,8 +225,15 @@ function recolorLayer(L,hex){ if(L.img) return; snapshot();
   else { for(let i=0;i<L.data.length;i++) if(L.data[i]!==null) L.data[i]=hex; }
   state.thumbsDirty=true; render(); buildLayers(); }
 function fxApply(){ state.thumbsDirty=true; render(); buildLayers(); }
+// ---------- Navigation de la modale Options du calque (liste des effets à gauche) ----------
+function showFxPane(id){
+  document.querySelectorAll(".fx-nav-item").forEach(el=>el.classList.toggle("active",el.dataset.fx===id));
+  document.querySelectorAll(".fx-pane").forEach(el=>el.classList.toggle("active",el.dataset.fxPane===id));
+}
+document.querySelectorAll(".fx-nav-item").forEach(el=>el.addEventListener("click",()=>showFxPane(el.dataset.fx)));
 function openFxModal(L){
   fxLayer=L; const isImg=!!L.img; const fx=ensureFx(L);
+  showFxPane("blend");
   document.getElementById("fxBlend").value=L.blend||"normal";
   document.getElementById("fxOpacity").value=Math.round(L.opacity*100);
   document.getElementById("fxLock").checked=!!L.locked;
@@ -608,7 +615,8 @@ canvasText.addEventListener("keydown",e=>{
 });
 canvasText.addEventListener("blur",()=>{ if(state.textEditing){ if(state.textString.trim()) commitCanvasText(); else cancelCanvasText(); } });
 
-document.getElementById("brush").oninput=e=>{ state.brush=+e.target.value; document.getElementById("brushV").textContent=state.brush; };
+document.getElementById("brush").oninput=e=>{ state.brush=+e.target.value; document.getElementById("brushN").value=state.brush; };
+document.getElementById("brushN").oninput=e=>{ const v=Math.max(1,Math.min(32,+e.target.value||1)); state.brush=v; document.getElementById("brush").value=v; };
 document.getElementById("fillShape").onchange=e=>{ state.fillShape=e.target.checked; if(state.activeShape){ state.activeShape.filled=state.fillShape; shapeToPreview(); render(); } };
 document.getElementById("strokeW").oninput=e=>{ state.strokeWidth=+e.target.value; document.getElementById("strokeWV").textContent=state.strokeWidth;
   if(state.activeShape && state.activeShape.kind!=="layer"){ state.activeShape.strokeW=state.strokeWidth; shapeToPreview(); render(); } };

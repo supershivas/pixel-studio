@@ -97,6 +97,19 @@
   .fx-group+.fx-group{border-top:1px solid var(--line);margin-top:4px}
   .fx-group h3{margin:8px 0 2px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);font-weight:700}
   .fx-group .pref{border-bottom:none;padding:8px 0}
+  .fx-modal{width:min(640px,94vw)}
+  .fx-body{display:flex;align-items:stretch;padding:0;gap:0}
+  .fx-nav{width:168px;flex:0 0 auto;border-right:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:2px}
+  .fx-nav-item{text-align:left;background:transparent;border:1px solid transparent;padding:9px 10px;border-radius:7px;
+    font-size:13px;color:var(--ink-dim);font-family:var(--sans)}
+  .fx-nav-item:hover{background:var(--panel-2);color:var(--ink)}
+  .fx-nav-item.active{background:var(--accent-blue);color:#fff}
+  .fx-panel{flex:1;min-width:0;padding:6px 20px;max-height:min(60vh,440px);overflow-y:auto}
+  .fx-pane{display:none}
+  .fx-pane.active{display:block}
+  .fx-pane .pref{padding:14px 0}
+  @media (max-width:640px){ .fx-body{flex-direction:column}
+    .fx-nav{width:100%;flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:1px solid var(--line)} }
   .pref input[type=color]{width:38px;height:26px;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer}
   .pref input[type=number]{width:64px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)}
   .pref input[type=range]{width:130px;accent-color:var(--accent)}
@@ -441,7 +454,9 @@
 </header>
 
 <div class="toolopts" id="toolOpts">
-  <div class="row" id="optBrush">Taille du crayon <input type="range" id="brush" min="1" max="6" value="1"><span id="brushV" style="font:12px var(--mono);width:16px">1</span></div>
+  <div class="row" id="optBrush">Taille du crayon / gomme
+    <input type="range" id="brush" min="1" max="32" value="1">
+    <input type="number" id="brushN" min="1" max="32" value="1" style="width:48px"></div>
   <div class="row" id="optShapeKind">Forme <div class="shapekind-picker" id="shapeKindPicker"></div></div>
   <label class="check" id="optFill"><input type="checkbox" id="fillShape"> Formes pleines</label>
   <div class="row" id="optStroke">Épaisseur du trait <input type="range" id="strokeW" min="1" max="6" value="1"><span id="strokeWV" style="font:12px var(--mono);width:16px">1</span></div>
@@ -576,57 +591,70 @@
 </div>
 
 <div class="modal-backdrop" id="fxModal">
-  <div class="modal" style="width:min(400px,92vw)" role="dialog" aria-label="Options du calque">
+  <div class="modal fx-modal" role="dialog" aria-label="Options du calque">
     <header><h2>Options du calque</h2><button class="modal-x" id="fxClose" title="Fermer" aria-label="Fermer">×</button></header>
-    <div class="body">
-      <div class="pref"><div class="lbl">Mode de fusion<small>Vis-à-vis des calques inférieurs</small></div>
-        <select id="fxBlend" style="background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px">
-          <option value="normal">Normal</option>
-          <option value="multiply">Produit</option>
-          <option value="screen">Écran</option>
-          <option value="overlay">Incrustation</option>
-          <option value="darken">Obscurcir</option>
-          <option value="lighten">Éclaircir</option>
-        </select></div>
-      <div class="pref"><div class="lbl">Opacité</div>
-        <input type="range" id="fxOpacity" min="0" max="100" value="100"></div>
-      <div class="pref"><div class="lbl">Verrouiller<small>Empêche toute modification du contenu</small></div>
-        <label class="switch"><input type="checkbox" id="fxLock"><span class="sl"></span></label></div>
-      <div class="pref"><div class="lbl">Verrouiller la transparence<small>Dessiner ne fait que recolorer les pixels déjà peints</small></div>
-        <label class="switch"><input type="checkbox" id="fxAlphaLock"><span class="sl"></span></label></div>
-      <div class="pref"><div class="lbl">Isoler<small>Masque temporairement les autres calques (vue seulement)</small></div>
-        <label class="switch"><input type="checkbox" id="fxSolo"><span class="sl"></span></label></div>
-      <div class="pref"><div class="lbl">Couleur<small>Recolore tout le calque (texte inclus)</small></div>
-        <button class="fxsw" id="fxColor" title="Choisir la couleur"></button></div>
-
-      <div class="fx-group">
-        <h3>Miroir</h3>
-        <div class="pref"><div class="lbl">Retourner le contenu<small>De ce calque uniquement</small></div>
-          <div style="display:flex;gap:8px">
-            <button class="mini" id="fxMirrorH">Horizontal</button>
-            <button class="mini" id="fxMirrorV">Vertical</button>
-          </div></div>
-      </div>
-
-      <div class="fx-group">
-        <h3>Contour</h3>
-        <div class="pref"><div class="lbl">Activer<small>Trait autour du contenu</small></div>
-          <label class="switch"><input type="checkbox" id="fxStrokeOn"><span class="sl"></span></label></div>
-        <div class="pref"><div class="lbl">Épaisseur &amp; couleur</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <input type="range" id="fxStrokeW" min="1" max="8" value="1" style="width:90px;accent-color:var(--accent)">
-            <button class="fxsw" id="fxStrokeColor"></button></div></div>
-      </div>
-
-      <div class="fx-group">
-        <h3>Ombre portée</h3>
-        <div class="pref"><div class="lbl">Activer<small>Nette, sans flou</small></div>
-          <label class="switch"><input type="checkbox" id="fxShadowOn"><span class="sl"></span></label></div>
-        <div class="pref"><div class="lbl">Décalage X / Y &amp; couleur</div>
-          <div style="display:flex;align-items:center;gap:6px">
-            <input type="number" id="fxShadowDX" value="1" style="width:52px">
-            <input type="number" id="fxShadowDY" value="1" style="width:52px">
-            <button class="fxsw" id="fxShadowColor"></button></div></div>
+    <div class="body fx-body">
+      <nav class="fx-nav" id="fxNav">
+        <button class="fx-nav-item" data-fx="blend">Fusion &amp; opacité</button>
+        <button class="fx-nav-item" data-fx="lock">Verrouillage</button>
+        <button class="fx-nav-item" data-fx="solo">Isoler</button>
+        <button class="fx-nav-item" data-fx="color">Couleur</button>
+        <button class="fx-nav-item" data-fx="mirror">Miroir</button>
+        <button class="fx-nav-item" data-fx="stroke">Contour</button>
+        <button class="fx-nav-item" data-fx="shadow">Ombre portée</button>
+      </nav>
+      <div class="fx-panel">
+        <div class="fx-pane" data-fx-pane="blend">
+          <div class="pref"><div class="lbl">Mode de fusion<small>Vis-à-vis des calques inférieurs</small></div>
+            <select id="fxBlend" style="background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px">
+              <option value="normal">Normal</option>
+              <option value="multiply">Produit</option>
+              <option value="screen">Écran</option>
+              <option value="overlay">Incrustation</option>
+              <option value="darken">Obscurcir</option>
+              <option value="lighten">Éclaircir</option>
+            </select></div>
+          <div class="pref"><div class="lbl">Opacité</div>
+            <input type="range" id="fxOpacity" min="0" max="100" value="100"></div>
+        </div>
+        <div class="fx-pane" data-fx-pane="lock">
+          <div class="pref"><div class="lbl">Verrouiller<small>Empêche toute modification du contenu</small></div>
+            <label class="switch"><input type="checkbox" id="fxLock"><span class="sl"></span></label></div>
+          <div class="pref"><div class="lbl">Verrouiller la transparence<small>Dessiner ne fait que recolorer les pixels déjà peints</small></div>
+            <label class="switch"><input type="checkbox" id="fxAlphaLock"><span class="sl"></span></label></div>
+        </div>
+        <div class="fx-pane" data-fx-pane="solo">
+          <div class="pref"><div class="lbl">Isoler<small>Masque temporairement les autres calques (vue seulement)</small></div>
+            <label class="switch"><input type="checkbox" id="fxSolo"><span class="sl"></span></label></div>
+        </div>
+        <div class="fx-pane" data-fx-pane="color">
+          <div class="pref"><div class="lbl">Couleur<small>Recolore tout le calque (texte inclus)</small></div>
+            <button class="fxsw" id="fxColor" title="Choisir la couleur"></button></div>
+        </div>
+        <div class="fx-pane" data-fx-pane="mirror">
+          <div class="pref"><div class="lbl">Retourner le contenu<small>De ce calque uniquement</small></div>
+            <div style="display:flex;gap:8px">
+              <button class="mini" id="fxMirrorH">Horizontal</button>
+              <button class="mini" id="fxMirrorV">Vertical</button>
+            </div></div>
+        </div>
+        <div class="fx-pane" data-fx-pane="stroke">
+          <div class="pref"><div class="lbl">Activer<small>Trait autour du contenu</small></div>
+            <label class="switch"><input type="checkbox" id="fxStrokeOn"><span class="sl"></span></label></div>
+          <div class="pref"><div class="lbl">Épaisseur &amp; couleur</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="range" id="fxStrokeW" min="1" max="8" value="1" style="width:90px;accent-color:var(--accent)">
+              <button class="fxsw" id="fxStrokeColor"></button></div></div>
+        </div>
+        <div class="fx-pane" data-fx-pane="shadow">
+          <div class="pref"><div class="lbl">Activer<small>Nette, sans flou</small></div>
+            <label class="switch"><input type="checkbox" id="fxShadowOn"><span class="sl"></span></label></div>
+          <div class="pref"><div class="lbl">Décalage X / Y &amp; couleur</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <input type="number" id="fxShadowDX" value="1" style="width:52px">
+              <input type="number" id="fxShadowDY" value="1" style="width:52px">
+              <button class="fxsw" id="fxShadowColor"></button></div></div>
+        </div>
       </div>
     </div>
     <div class="foot"><button class="mini" id="fxResetBtn">Réinitialiser les effets</button><button class="menu-btn active" id="fxOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Terminé</button></div>

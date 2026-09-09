@@ -377,25 +377,18 @@ export function enterLayerTransform(){
 document.getElementById("transformLayer").onclick=enterLayerTransform;
 
 // ---------- Pixelliser sur la palette (bloc de détail réglable + tramage) ----------
-let pixelizeTarget=null;
-function openPixelizeModal(){
-  const L=state.layers[state.active];
-  if(!L.img || !L._imgEl || !L._imgEl.complete || !L._imgEl.naturalWidth){ setHint("Sélectionne un calque image à pixelliser."); return; }
-  pixelizeTarget=L;
-  document.getElementById("pixelizeModal").classList.add("open");
-}
-document.getElementById("pixelizeLayer").onclick=openPixelizeModal;
-document.getElementById("pixelizeClose").onclick=()=>document.getElementById("pixelizeModal").classList.remove("open");
-document.getElementById("pixelizeCancel").onclick=()=>document.getElementById("pixelizeModal").classList.remove("open");
-document.getElementById("pixelizeModal").addEventListener("click",e=>{ if(e.target.id==="pixelizeModal") e.currentTarget.classList.remove("open"); });
-document.getElementById("pxBlock").oninput=e=>{ document.getElementById("pxBlockV").textContent=e.target.value+" px"; };
+// Le résultat est calculé et inséré comme calque d'aperçu dès l'ouverture de la modale, puis
+// recalculé à chaque changement de réglage ; il n'est versé dans l'historique qu'à la validation.
 const BAYER4=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
-document.getElementById("pixelizeOk").onclick=()=>{
-  const L=pixelizeTarget; const li=state.layers.indexOf(L); if(!L||li<0) return;
-  const block=Math.max(1,+document.getElementById("pxBlock").value||1);
-  const alphaThresh=+document.getElementById("pxAlpha").value||0;
-  const dither=document.getElementById("pxDither").checked;
+const pixelizeModal=document.getElementById("pixelizeModal");
+let pixelizeTarget=null, pixelizePreview=null, pixelizePrevActive=0, pixelizeRaf=0;
 
+function pixelizeParams(){
+  return { block:Math.max(1,+document.getElementById("pxBlock").value||1),
+           alphaThresh:+document.getElementById("pxAlpha").value||0,
+           dither:document.getElementById("pxDither").checked };
+}
+function pixelizeData(L,{block,alphaThresh,dither}){
   const off=document.createElement("canvas"); off.width=state.W; off.height=state.H; const octx2=off.getContext("2d");
   octx2.imageSmoothingEnabled=true;
   const im=L._imgEl, s=Math.min(state.W/im.naturalWidth,state.H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
@@ -416,12 +409,69 @@ document.getElementById("pixelizeOk").onclick=()=>{
     const hex=nearest(Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b)));
     for(let y=by;y<ey;y++) for(let x=bx;x<ex;x++) nd[y*state.W+x]=hex;
   }
-  snapshot();
-  const NL=newLayer("Pixellisé"); NL.data=nd;
-  state.layers.splice(li+1,0,NL); state.active=li+1;
+  return { data:nd, colors:pal.length };
+}
+// recalcul groupé sur une frame : le curseur reste fluide même sur un grand canevas
+function refreshPixelizePreview(){
+  if(!pixelizeTarget || !pixelizePreview) return;
+  if(pixelizeRaf) return;
+  pixelizeRaf=requestAnimationFrame(()=>{ pixelizeRaf=0;
+    if(!pixelizeTarget || !pixelizePreview) return;
+    pixelizePreview.data=pixelizeData(pixelizeTarget,pixelizeParams()).data;
+    state.thumbsDirty=true; buildLayers(); render();
+  });
+}
+function removePixelizePreview(){
+  if(!pixelizePreview) return;
+  const i=state.layers.indexOf(pixelizePreview);
+  if(i>=0) state.layers.splice(i,1);
+  state.active=Math.min(pixelizePrevActive,state.layers.length-1);
+  pixelizePreview=null;
+}
+function closePixelize(){
+  if(pixelizeRaf){ cancelAnimationFrame(pixelizeRaf); pixelizeRaf=0; }
+  removePixelizePreview();
+  pixelizeTarget=null;
+  pixelizeModal.classList.remove("open");
   state.thumbsDirty=true; buildLayers(); render();
-  document.getElementById("pixelizeModal").classList.remove("open");
-  showToast("Image pixellisée sur la palette ("+pal.length+" couleurs, bloc "+block+" px"+(dither?", tramage":"")+").",{type:"success"});
+}
+function openPixelizeModal(){
+  const L=state.layers[state.active];
+  if(!L.img || !L._imgEl || !L._imgEl.complete || !L._imgEl.naturalWidth){ showToast("Sélectionne un calque image à pixelliser.",{type:"warn"}); return; }
+  pixelizeTarget=L; pixelizePrevActive=state.active;
+  pixelizePreview=newLayer("Pixellisé");
+  pixelizePreview.groupId=L.groupId||null;
+  state.layers.splice(state.active+1,0,pixelizePreview); state.active++;
+  pixelizeModal.classList.add("open");
+  pixelizePreview.data=pixelizeData(L,pixelizeParams()).data;
+  state.thumbsDirty=true; buildLayers(); render();
+}
+document.getElementById("pixelizeLayer").onclick=openPixelizeModal;
+document.getElementById("pixelizeClose").onclick=closePixelize;
+document.getElementById("pixelizeCancel").onclick=closePixelize;
+pixelizeModal.addEventListener("click",e=>{ if(e.target.id==="pixelizeModal") closePixelize(); });
+// Échap = annuler (capture : on court-circuite le gestionnaire général des modales)
+window.addEventListener("keydown",e=>{
+  if(e.key==="Escape" && pixelizeModal.classList.contains("open")){ e.stopPropagation(); closePixelize(); }
+},true);
+document.getElementById("pxBlock").oninput=e=>{ document.getElementById("pxBlockV").textContent=e.target.value+" px"; refreshPixelizePreview(); };
+document.getElementById("pxAlpha").oninput=refreshPixelizePreview;
+document.getElementById("pxDither").onchange=refreshPixelizePreview;
+document.getElementById("pixelizeOk").onclick=()=>{
+  if(!pixelizeTarget || !pixelizePreview){ closePixelize(); return; }
+  if(pixelizeRaf){ cancelAnimationFrame(pixelizeRaf); pixelizeRaf=0; }
+  const p=pixelizeParams();
+  const res=pixelizeData(pixelizeTarget,p);          // état final, calculé sur les réglages courants
+  const L=pixelizeTarget, layer=pixelizePreview;
+  removePixelizePreview();                            // on retire l'aperçu…
+  snapshot();                                         // …pour que l'annulation revienne à l'avant-modale
+  const li=state.layers.indexOf(L);
+  layer.data=res.data;
+  state.layers.splice(li+1,0,layer); state.active=li+1;
+  pixelizePreview=null; pixelizeTarget=null;
+  pixelizeModal.classList.remove("open");
+  state.thumbsDirty=true; buildLayers(); render();
+  showToast("Image pixellisée sur la palette ("+res.colors+" couleurs, bloc "+p.block+" px"+(p.dither?", tramage":"")+").",{type:"success"});
 };
 
 // handles (coordonnées écran = grille × zoom)

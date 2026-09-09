@@ -263,7 +263,7 @@ function fillFxControls(L){
   document.getElementById("fxAlphaLock").checked=!!L.alphaLock;
   document.getElementById("fxAlphaLock").disabled=isImg||L.locked;
   document.getElementById("fxSolo").checked=isSolo(L.id);
-  ["fxColor","fxStrokeOn","fxStrokeW","fxStrokeColor","fxShadowOn","fxShadowDX","fxShadowDY","fxShadowColor","fxResetBtn"]
+  ["fxColor","fxInvert","fxSnapPalette","fxStrokeOn","fxStrokeW","fxStrokeColor","fxShadowOn","fxShadowDX","fxShadowDY","fxShadowColor","fxResetBtn"]
     .forEach(id=>{ document.getElementById(id).disabled=isImg||L.locked; });
   ["fxMirrorH","fxMirrorV"].forEach(id=>{ document.getElementById(id).disabled=isImg||!!L.text||L.locked; });
   document.getElementById("fxColor").style.background=(L.text&&L.text.color)||state.color;
@@ -283,11 +283,18 @@ export function openFxModal(L,pane){
   showFxPane(pane||"blend");
   fxModalEl.classList.add("open");
 }
-// entrée depuis le menu Effets : ouvre directement la bonne rubrique pour le calque actif
-export function openLayerFx(pane){
+// entrée depuis le menu Effets : ouvre la bonne rubrique pour le calque actif et, le cas
+// échéant, pré-applique l'opération demandée pour qu'elle soit visible immédiatement
+export function openLayerFx(pane,op){
   const L=state.layers[state.active];
   if(!L || L.isGroup){ showToast("Sélectionne d'abord un calque.",{type:"warn"}); return; }
+  if(op && (L.img || L.locked)){
+    showToast(L.img?"Cet effet ne s'applique pas aux calques image.":"Calque verrouillé — déverrouille-le dans ses options (⚙).",{type:"warn"});
+    return;
+  }
   openFxModal(L,pane);
+  if(op==="invert") fxInvertLayer(L);
+  else if(op==="snap") fxSnapToPalette(L);
 }
 function closeFxModal(){ fxModalEl.classList.remove("open"); fxLayer=null; fxOrig=null; fxDirty=false; }
 export function fxCancel(){
@@ -323,6 +330,25 @@ function mirrorLayerData(L,axis){
 }
 document.getElementById("fxMirrorH").onclick=()=>mirrorLayerData(fxLayer,"h");
 document.getElementById("fxMirrorV").onclick=()=>mirrorLayerData(fxLayer,"v");
+// Inverser / Reposer sur la palette : appliqués au calque en aperçu, validés avec la modale
+function fxInvertLayer(L){
+  if(!L || L.img || L.locked) return false;
+  if(!L.text && !L.data.some(v=>v!==null)){ showToast("Calque vide : rien à inverser.",{type:"warn"}); return false; }
+  recolorMap(L, c=>{ const [r,g,b]=hexToRgb(c); return "#"+[255-r,255-g,255-b].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); });
+  fxApply(); return true;
+}
+function fxSnapToPalette(L){
+  if(!L || L.img || L.locked) return false;
+  if(!L.text && !L.data.some(v=>v!==null)){ showToast("Calque vide : rien à reposer sur la palette.",{type:"warn"}); return false; }
+  const palHex=PALETTE.concat(state.customColors), pal=palHex.map(hexToRgb);
+  recolorMap(L, c=>{ if(palHex.includes(c)) return c;
+    const [r,g,b]=hexToRgb(c); let best=0,bd=1e9;
+    for(let p=0;p<pal.length;p++){ const dr=r-pal[p][0],dg=g-pal[p][1],db=b-pal[p][2], dd=dr*dr+dg*dg+db*db; if(dd<bd){bd=dd;best=p;} }
+    return palHex[best]; });
+  fxApply(); return true;
+}
+document.getElementById("fxInvert").onclick=()=>fxInvertLayer(fxLayer);
+document.getElementById("fxSnapPalette").onclick=()=>fxSnapToPalette(fxLayer);
 const _fx=()=>fxLayer?ensureFx(fxLayer):null;
 document.getElementById("fxColor").onclick=()=>{ if(!fxLayer) return; openColorPicker(document.getElementById("fxColor"), (fxLayer.text&&fxLayer.text.color)||state.color, hex=>{ recolorLayer(fxLayer,hex); document.getElementById("fxColor").style.background=hex; }); };
 document.getElementById("fxStrokeOn").onchange=e=>{ const f=_fx(); if(f){ f.stroke.on=e.target.checked; fxApply(); } };
@@ -583,24 +609,9 @@ function recolorMap(L,mapHex){
   if(L.text){ L.text.color=mapHex(L.text.color); reRasterTextLayer(L); return; }
   for(let i=0;i<L.data.length;i++){ const c=L.data[i]; if(c!==null) L.data[i]=mapHex(c); }
 }
-document.getElementById("invertLayer").onclick=()=>{ const L=state.layers[state.active]; if(L.img) return;
-  if(L.locked){ showToast("Calque verrouillé — déverrouille-le dans ses options (⚙).",{type:"warn"}); return; }
-  if(!L.text && !L.data.some(v=>v!==null)){ setHint("Calque vide : rien à inverser."); return; }
-  snapshot();
-  recolorMap(L, c=>{ const [r,g,b]=hexToRgb(c); return "#"+[255-r,255-g,255-b].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); });
-  state.thumbsDirty=true; render(); buildLayers();
-  showToast("Couleurs inversées.",{type:"success"}); };
-document.getElementById("snapLayerPalette").onclick=()=>{ const L=state.layers[state.active]; if(L.img) return;
-  if(L.locked){ showToast("Calque verrouillé — déverrouille-le dans ses options (⚙).",{type:"warn"}); return; }
-  if(!L.text && !L.data.some(v=>v!==null)){ setHint("Calque vide : rien à reposer sur la palette."); return; }
-  const palHex=PALETTE.concat(state.customColors), pal=palHex.map(hexToRgb);
-  snapshot();
-  recolorMap(L, c=>{ if(palHex.includes(c)) return c;
-    const [r,g,b]=hexToRgb(c); let best=0,bd=1e9;
-    for(let p=0;p<pal.length;p++){ const dr=r-pal[p][0],dg=g-pal[p][1],db=b-pal[p][2], dd=dr*dr+dg*dg+db*db; if(dd<bd){bd=dd;best=p;} }
-    return palHex[best]; });
-  state.thumbsDirty=true; render(); buildLayers();
-  showToast("Couleurs reposées sur la palette du fichier.",{type:"success"}); };
+// Inverser / Reposer sur la palette : ouvrent la modale des effets avec l'aperçu déjà appliqué
+document.getElementById("invertLayer").onclick=()=>openLayerFx("adjust","invert");
+document.getElementById("snapLayerPalette").onclick=()=>openLayerFx("adjust","snap");
 document.getElementById("mergeLayer").onclick=()=>{ if(state.activeShape) bakeShape();
   let bi=state.active-1; while(bi>=0 && state.layers[bi].isGroup) bi--;
   if(bi<0){ setHint("Aucun calque en dessous où fusionner."); return; }

@@ -78,9 +78,12 @@
   .busy{font:12px var(--mono);color:var(--accent);margin-left:8px}
 
   .modal-backdrop{position:fixed;inset:0;background:rgba(6,10,20,.6);backdrop-filter:blur(2px);z-index:100;display:none;place-items:center}
-  /* pas d'assombrissement pour les Options du calque : on doit voir le rendu live derrière */
-  #fxModal.modal-backdrop{background:transparent;backdrop-filter:none}
-  #fxModal .modal{box-shadow:0 24px 60px rgba(0,0,0,.75),0 0 0 1px var(--line)}
+  /* pas d'assombrissement pour les modales à aperçu : on doit voir le rendu live derrière */
+  #fxModal.modal-backdrop,#pixelizeModal.modal-backdrop{background:transparent;backdrop-filter:none}
+  #fxModal .modal,#pixelizeModal .modal{box-shadow:0 24px 60px rgba(0,0,0,.75),0 0 0 1px var(--line)}
+  /* modale étroite : rangée sur le bord droit pour libérer la vue sur l'aperçu (déplaçable) */
+  #pixelizeModal.modal-backdrop.open{place-items:center end;padding-right:18px}
+  @media (max-width:900px){ #pixelizeModal.modal-backdrop.open{place-items:center;padding-right:0} }
   .modal-backdrop.open{display:grid}
   .modal{width:min(460px,92vw);max-height:86vh;overflow-y:auto;background:var(--panel);
     border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
@@ -468,16 +471,15 @@
     <div class="menu-root">
       <button class="menu-btn" data-menu="fx">Effets</button>
       <div class="menu" id="menu-fx" style="min-width:270px">
-        <div class="menu-label">Effets du calque · aperçu en direct</div>
+        <div class="menu-label">Aperçu en direct, appliqué à la validation</div>
         <button class="menu-item" id="fxGoColor" data-close>Couleur…</button>
+        <button class="menu-item" id="invertLayer" data-close>Inverser les couleurs…</button>
+        <button class="menu-item" id="snapLayerPalette" data-close>Reposer sur la palette…</button>
         <button class="menu-item" id="fxGoMirror" data-close>Miroir…</button>
         <button class="menu-item" id="fxGoStroke" data-close>Contour…</button>
         <button class="menu-item" id="fxGoShadow" data-close>Ombre portée…</button>
         <div class="menu-sep"></div>
-        <div class="menu-label">Appliqué immédiatement</div>
-        <button class="menu-item" id="pixelizeLayer" data-close>Pixelliser l'image (sur la palette)</button>
-        <button class="menu-item" id="invertLayer" data-close>Inverser les couleurs</button>
-        <button class="menu-item" id="snapLayerPalette" data-close>Reposer sur la palette</button>
+        <button class="menu-item" id="pixelizeLayer" data-close>Pixelliser l'image (sur la palette)…</button>
       </div>
     </div>
     <span id="busy" class="busy" hidden>Export en cours…</span>
@@ -633,6 +635,7 @@
         <button class="fx-nav-item" data-fx="solo">Isoler</button>
         <div class="fx-nav-label">Effets</div>
         <button class="fx-nav-item" data-fx="color">Couleur</button>
+        <button class="fx-nav-item" data-fx="adjust">Inverser &amp; palette</button>
         <button class="fx-nav-item" data-fx="mirror">Miroir</button>
         <button class="fx-nav-item" data-fx="stroke">Contour</button>
         <button class="fx-nav-item" data-fx="shadow">Ombre portée</button>
@@ -664,6 +667,12 @@
         <div class="fx-pane" data-fx-pane="color">
           <div class="pref"><div class="lbl">Couleur<small>Recolore tout le calque (texte inclus)</small></div>
             <button class="fxsw" id="fxColor" title="Choisir la couleur"></button></div>
+        </div>
+        <div class="fx-pane" data-fx-pane="adjust">
+          <div class="pref"><div class="lbl">Inverser les couleurs<small>Chaque pixel prend sa couleur complémentaire</small></div>
+            <button class="mini" id="fxInvert">Inverser</button></div>
+          <div class="pref"><div class="lbl">Reposer sur la palette<small>Chaque couleur est remplacée par la plus proche de la palette du fichier</small></div>
+            <button class="mini" id="fxSnapPalette">Reposer</button></div>
         </div>
         <div class="fx-pane" data-fx-pane="mirror">
           <div class="pref"><div class="lbl">Retourner le contenu<small>De ce calque uniquement</small></div>
@@ -730,9 +739,13 @@
         <input type="range" id="pxAlpha" min="0" max="255" value="128"></div>
       <div class="pref"><div class="lbl">Tramage (dithering)<small>Simule des teintes intermédiaires avec la palette</small></div>
         <label class="switch"><input type="checkbox" id="pxDither"><span class="sl"></span></label></div>
-      <p class="note">Utilise la palette du fichier (couleurs de base + couleurs ajoutées). Le résultat est ajouté en nouveau calque, le calque image d'origine n'est pas modifié.</p>
+      <p class="note">Utilise la palette du fichier (couleurs de base + couleurs ajoutées). Le résultat est ajouté en nouveau calque, le calque image d'origine n'est pas modifié. Déplace la fenêtre par son en-tête pour dégager l'aperçu.</p>
     </div>
-    <div class="foot"><button class="mini" id="pixelizeCancel">Annuler</button><button class="menu-btn active" id="pixelizeOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Pixelliser</button></div>
+    <div class="foot">
+      <p class="fx-foot-note">Aperçu en direct sur le dessin — rien n'est appliqué tant que tu n'as pas validé.</p>
+      <button class="mini" id="pixelizeCancel">Annuler</button>
+      <button class="menu-btn active" id="pixelizeOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Appliquer</button>
+    </div>
   </div>
 </div>
 

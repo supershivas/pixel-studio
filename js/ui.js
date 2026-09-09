@@ -101,7 +101,7 @@ const shapeKindPicker=document.getElementById("shapeKindPicker");
 shapeKindPicker.innerHTML="";
 SHAPE_KINDS.forEach(sk=>{
   const b=document.createElement("button"); b.type="button"; b.className="skind"+(sk.id===state.shapeKind?" active":"");
-  b.title=sk.label; b.innerHTML='<svg viewBox="0 0 24 24">'+sk.svg+'</svg>';
+  b.title=sk.label; b.dataset.kind=sk.id; b.innerHTML='<svg viewBox="0 0 24 24">'+sk.svg+'</svg>';
   b.addEventListener("click",()=>{
     if(state.activeShape) bakeShape();
     state.shapeKind=sk.id;

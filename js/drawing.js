@@ -6,13 +6,19 @@ import { buildLayers, commitCanvasText } from "./ui.js";
 import { showToast } from "./toast.js";
 
 // ---------- Drawing primitives ----------
-export function stamp(x,y,col,L){ // brush square, mirror-aware ; L = calque cible (décalage géré)
-  const half=Math.floor((state.brush-1)/2);
+// ---------- Symétrie ----------
+// Points image de (x,y) selon la symétrie active, point d'origine compris.
+// Partagée par le crayon, la gomme et l'outil Forme pour que tous se comportent pareil.
+export function mirrorPoints(x,y){
   const pts=[[x,y]];
   if(state.mirror==="x"||state.mirror==="xy") pts.push([state.W-1-x,y]);
   if(state.mirror==="y"||state.mirror==="xy") pts.push([x,state.H-1-y]);
   if(state.mirror==="xy") pts.push([state.W-1-x,state.H-1-y]);
-  for(const [px,py] of pts)
+  return pts;
+}
+export function stamp(x,y,col,L){ // brush square, mirror-aware ; L = calque cible (décalage géré)
+  const half=Math.floor((state.brush-1)/2);
+  for(const [px,py] of mirrorPoints(x,y))
     for(let dy=-half;dy<state.brush-half;dy++) for(let dx=-half;dx<state.brush-half;dx++){
       const nx=px+dx, ny=py+dy;
       if(inBounds(nx,ny)) setLayerAt(L,nx,ny,col); // col null => efface
@@ -332,7 +338,8 @@ export function sampleLayerTx(s){
 export function shapeToPreview(){ state.previewCells=new Map();
   if(!state.activeShape) return;
   if(state.activeShape.kind==="layer"){ for(const [x,y,c] of sampleLayerTx(state.activeShape)) if(inBounds(x,y)) state.previewCells.set(x+","+y,c); return; }
-  for(const [x,y] of rasterizeShape(state.activeShape)) if(inBounds(x,y)) state.previewCells.set(x+","+y,state.activeShape.color); }
+  for(const [x,y] of rasterizeShape(state.activeShape))
+    for(const [mx,my] of mirrorPoints(x,y)) if(inBounds(mx,my)) state.previewCells.set(mx+","+my,state.activeShape.color); }
 export function addPixelLayerAbove(name){ const L=newLayer(name); state.layers.splice(state.active+1,0,L); state.active++; return L; }
 export function bakeShape(){
   if(!state.activeShape) return;
@@ -343,7 +350,8 @@ export function bakeShape(){
   const names={rect:"Rectangle",ellipse:"Ellipse",triangle:"Triangle",diamond:"Losange",star:"Étoile",heart:"Cœur"};
   const L=addPixelLayerAbove(names[state.activeShape.type]||"Forme");
   const d=L.data;
-  for(const [x,y] of rasterizeShape(state.activeShape)) if(inBounds(x,y)) d[idx(x,y)]=state.activeShape.color;
+  for(const [x,y] of rasterizeShape(state.activeShape))
+    for(const [mx,my] of mirrorPoints(x,y)) if(inBounds(mx,my)) d[idx(mx,my)]=state.activeShape.color;
   state.activeShape=null; state.txOp=null; state.previewCells=null; setHint("");
   buildLayers(); render();
 }

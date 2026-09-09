@@ -2,7 +2,7 @@ import { state, view, hint, stage } from "./state.js";
 import { inBounds, insideRect, render, clampSel, liftSelection, commitFloat, copySelection, cutSelection,
   deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx } from "./helpers.js";
 import { snapshot, undo, redo } from "./history.js";
-import { stamp, line, floodFill, selectSimilar, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform } from "./drawing.js";
+import { stamp, line, floodFill, selectSimilar, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
 import { setColor, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, updateCropFields, prefs } from "./ui.js";
 
 // ---------- Pointer interaction ----------
@@ -21,7 +21,9 @@ export function makeShape(x0,y0,x1,y1,square){
 export function line_immediate_commit(x0,y0,x1,y1){ const d=state.layers[state.active].data;
   line(x0,y0,x1,y1,(px,py)=>stamp(px,py,state.color,state.layers[state.active])); }
 export function stampPreview(px,py){ const half=Math.floor((state.brush-1)/2);
-  for(let dy=-half;dy<state.brush-half;dy++) for(let dx=-half;dx<state.brush-half;dx++){ const nx=px+dx,ny=py+dy; if(inBounds(nx,ny)) state.previewCells.set(nx+","+ny,state.color); } }
+  for(const [bx,by] of mirrorPoints(px,py))                       // l'aperçu montre la symétrie, comme le tracé validé
+    for(let dy=-half;dy<state.brush-half;dy++) for(let dx=-half;dx<state.brush-half;dx++){
+      const nx=bx+dx,ny=by+dy; if(inBounds(nx,ny)) state.previewCells.set(nx+","+ny,state.color); } }
 
 view.addEventListener("pointerdown",e=>{
   if(spaceHeld || e.button===1) return;   // laisser le pan (géré par la scène)

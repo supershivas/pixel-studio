@@ -3,15 +3,16 @@ import { compositeLayers, newLayer, newImageLayer, render, encodeLayers, decodeL
 import { snapshot, history, onSnapshot } from "./history.js";
 import { bakeShape } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
-import { buildLayers, buildSwatches, presetSel, PRESETS, setProjectName } from "./ui.js";
+import { buildLayers, buildSwatches, presetSel, PRESETS, setProjectName, openColorPicker } from "./ui.js";
 import { showToast } from "./toast.js";
 import { framesSnapshotForSave, loadFramesFromSave } from "./frames.js";
 
 // ---------- Export ----------
-function flattenCanvas(ls,scale,opaque){
+// bg : couleur de fond (hex) ou null/false pour un rendu transparent
+function flattenCanvas(ls,scale,bg){
   const c=document.createElement("canvas"); c.width=state.W*scale; c.height=state.H*scale;
   const cx=c.getContext("2d"); cx.imageSmoothingEnabled=false;
-  if(opaque){ cx.fillStyle="#FFFFFF"; cx.fillRect(0,0,c.width,c.height); }
+  if(bg){ cx.fillStyle=(bg===true?"#FFFFFF":bg); cx.fillRect(0,0,c.width,c.height); }
   const tmp=document.createElement("canvas"); tmp.width=state.W; tmp.height=state.H;
   tmp.getContext("2d").putImageData(compositeLayers(ls),0,0);
   cx.drawImage(tmp,0,0,c.width,c.height);
@@ -43,11 +44,81 @@ function download(url,name){ const a=document.createElement("a"); a.href=url; a.
 function stamp2(){ return new Date().toISOString().slice(0,10); }
 function safeName(s){ return (s||"").trim().replace(/[^\w\-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"carte"; }
 
-document.getElementById("expPNG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download(flattenCanvas(state.layers,s,false).toDataURL("image/png"),`${safeName(state.projectName)}_${state.W}x${state.H}_x${s}.png`);
-  showToast("PNG exporté.",{type:"success"}); };
+// ---------- Modale d'export PNG (taille, fond, nom de fichier) ----------
+const PNG_MAX_SIDE=16384;                     // limite de taille de canevas des navigateurs
+const QUICK_SCALES=[1,2,4,8,16];
+const pngModal=document.getElementById("pngModal");
+const pngScaleEl=document.getElementById("pngScale"), pngBgOn=document.getElementById("pngBgOn");
+const pngBgSw=document.getElementById("pngBgColor"), pngPicker=document.getElementById("pngScalePicker");
+let pngBgHex="#FFFFFF";
+function pngScale(){ return Math.max(1,Math.min(64,+pngScaleEl.value||1)); }
+function buildPngScalePicker(){
+  pngPicker.innerHTML="";
+  const reco=+document.getElementById("expScale").value||0;
+  const scales=QUICK_SCALES.slice();
+  if(reco && !scales.includes(reco)) scales.push(reco);
+  scales.sort((a,b)=>a-b);
+  for(const v of scales){
+    const b=document.createElement("button"); b.type="button"; b.className="mini"; b.dataset.scale=v;
+    b.textContent="×"+v+(v===reco?" ✓":"");
+    b.title=v===reco?"Échelle conseillée pour ce format":(state.W*v)+" × "+(state.H*v)+" px";
+    b.addEventListener("click",()=>{ pngScaleEl.value=v; refreshPngModal(); });
+    pngPicker.appendChild(b);
+  }
+}
+function refreshPngModal(){
+  const sc=pngScale(), w=state.W*sc, h=state.H*sc;
+  [...pngPicker.children].forEach(b=>b.classList.toggle("active",+b.dataset.scale===sc));
+  pngBgSw.disabled=!pngBgOn.checked;
+  pngBgSw.style.background=pngBgOn.checked?pngBgHex:"transparent";
+  const over=w>PNG_MAX_SIDE||h>PNG_MAX_SIDE;
+  const sum=document.getElementById("pngSummary");
+  sum.textContent=w+" × "+h+" px"+(pngBgOn.checked?"":" · transparent");
+  sum.classList.toggle("over",over);
+  const warn=document.getElementById("pngWarn");
+  warn.hidden=!over;
+  if(over) warn.textContent=`Trop grand : les navigateurs ne dépassent pas ${PNG_MAX_SIDE} px de côté. Réduis l'échelle.`;
+  document.getElementById("pngOk").disabled=over;
+}
+function openPngModal(){
+  if(state.activeShape) bakeShape();
+  document.getElementById("pngName").value=`${safeName(state.projectName)}_${state.W}x${state.H}`;
+  pngScaleEl.value=+document.getElementById("expScale").value||6;
+  buildPngScalePicker();
+  refreshPngModal();
+  pngModal.classList.add("open");
+}
+function closePngModal(){ pngModal.classList.remove("open"); }
+function doPngExport(){
+  const sc=pngScale();
+  if(state.W*sc>PNG_MAX_SIDE||state.H*sc>PNG_MAX_SIDE) return;
+  const bg=pngBgOn.checked?pngBgHex:null;
+  const name=(document.getElementById("pngName").value||"").trim();
+  const file=(safeName(name)||safeName(state.projectName))+"_x"+sc+".png";
+  closePngModal();
+  document.getElementById("expScale").value=sc;      // les autres exports suivent la même échelle
+  download(flattenCanvas(state.layers,sc,bg).toDataURL("image/png"),file);
+  showToast(`PNG exporté (${state.W*sc} × ${state.H*sc} px${bg?"":", fond transparent"}).`,{type:"success"});
+}
+document.getElementById("expPNG").onclick=openPngModal;
+pngScaleEl.oninput=refreshPngModal;
+pngBgOn.onchange=refreshPngModal;
+pngBgSw.onclick=()=>openColorPicker(pngBgSw, pngBgHex, hex=>{ pngBgHex=hex; refreshPngModal(); });
+document.getElementById("pngCancel").onclick=closePngModal;
+document.getElementById("pngClose").onclick=closePngModal;
+pngModal.addEventListener("click",e=>{ if(e.target.id==="pngModal") closePngModal(); });
+document.getElementById("pngOk").onclick=doPngExport;
+document.getElementById("pngName").addEventListener("keydown",e=>{ e.stopPropagation();
+  if(e.key==="Enter"){ e.preventDefault(); doPngExport(); }
+  else if(e.key==="Escape"){ e.preventDefault(); closePngModal(); } });
+pngScaleEl.addEventListener("keydown",e=>{ e.stopPropagation();
+  if(e.key==="Enter"){ e.preventDefault(); doPngExport(); }
+  else if(e.key==="Escape"){ e.preventDefault(); closePngModal(); } });
+window.addEventListener("keydown",e=>{
+  if(e.key==="Escape" && pngModal.classList.contains("open")){ e.stopPropagation(); closePngModal(); }
+},true);
 document.getElementById("expJPG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download(flattenCanvas(state.layers,s,true).toDataURL("image/jpeg",0.95),`${safeName(state.projectName)}_${state.W}x${state.H}_x${s}.jpg`);
+  download(flattenCanvas(state.layers,s,"#FFFFFF").toDataURL("image/jpeg",0.95),`${safeName(state.projectName)}_${state.W}x${state.H}_x${s}.jpg`);
   showToast("JPG exporté.",{type:"success"}); };
 document.getElementById("expSVG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
   download("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svgString(state.layers,s)),`${safeName(state.projectName)}_${state.W}x${state.H}.svg`);
@@ -65,7 +136,7 @@ document.getElementById("expSpriteSheet").onclick=()=>{
   const sctx=sheet.getContext("2d"); sctx.imageSmoothingEnabled=false;
   frames.forEach((f,i)=>{
     const layers = i===state.activeFrame ? state.layers : f.layers;
-    sctx.drawImage(flattenCanvas(layers,s,false), (i%cols)*cw, Math.floor(i/cols)*ch);
+    sctx.drawImage(flattenCanvas(layers,s,null), (i%cols)*cw, Math.floor(i/cols)*ch);
   });
   download(sheet.toDataURL("image/png"), `${safeName(state.projectName)}_sprites_${state.W}x${state.H}_${frames.length}f.png`);
   showToast(`Planche de sprites exportée (${cols}×${rows}, ${frames.length} frames).`,{type:"success"});
@@ -149,7 +220,7 @@ document.getElementById("batchFiles").onchange=async e=>{
         state.W=pw; state.H=ph;                        // dimensions du fichier, le temps du rendu
         n++; const base=`${String(n).padStart(3,"0")}_${safeName(c.name)}`;
         if(fmt==="svg"){ out.push({name:base+".svg", data:new TextEncoder().encode(svgString(ls,s))}); }
-        else { const cv=flattenCanvas(ls,s,fmt==="jpg");
+        else { const cv=flattenCanvas(ls,s,fmt==="jpg"?"#FFFFFF":null);
           const blob=await new Promise(r=>cv.toBlob(r, fmt==="jpg"?"image/jpeg":"image/png", 0.95));
           out.push({name:base+"."+(fmt==="jpg"?"jpg":"png"), data:new Uint8Array(await blob.arrayBuffer())}); }
       }
@@ -195,7 +266,7 @@ document.getElementById("fileInput").onchange=e=>{
 // explicites (Enregistrer, Ouvrir, Fermer le projet) — jamais à chaque frappe.
 const RECENTS_KEY="eupix.recents", RECENTS_MAX=8;
 function makeThumb(){
-  const src=flattenCanvas(state.layers,1,false);
+  const src=flattenCanvas(state.layers,1,null);
   const maxDim=120, sc=Math.min(1,maxDim/Math.max(state.W,state.H));
   const tw=Math.max(1,Math.round(state.W*sc)), th=Math.max(1,Math.round(state.H*sc));
   const cv=document.createElement("canvas"); cv.width=tw; cv.height=th;

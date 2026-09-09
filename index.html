@@ -136,6 +136,10 @@
   .switch input:checked + .sl:before{transform:translateX(18px);background:#1a1400}
   .modal .foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid var(--line)}
   body.no-kbd .tool .kbd{display:none}
+  .scale-picker{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .scale-picker .mini.active{background:var(--accent);color:#1a1400;border-color:var(--accent);font-weight:700}
+  .exp-sum{font:12px var(--mono);color:var(--ink)}
+  .exp-sum.over{color:var(--danger)}
   .fxsw{width:30px;height:26px;border-radius:6px;border:1px solid var(--line);cursor:pointer;padding:0;background:#141428}
   .fxsw:hover{border-color:var(--ink)}
   .pref input[type=number]{width:52px}
@@ -162,6 +166,8 @@
   button.primary{background:var(--accent);color:#1a1400;border-color:var(--accent);font-weight:700}
   button.primary:hover{filter:brightness(1.08);background:var(--accent)}
   button.ghost{background:transparent}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button:disabled:hover{border-color:var(--line);background:var(--panel-2);filter:none}
 
   main{flex:1;display:flex;min-height:0}
   .rail{
@@ -401,7 +407,7 @@
       <div class="menu" id="menu-export">
         <div class="menu-field"><span>Échelle d'export</span> ×<input type="number" id="expScale" min="1" max="30" value="15"></div>
         <button class="menu-item" id="expSVG" data-close>SVG (impression)</button>
-        <button class="menu-item" id="expPNG" data-close>PNG</button>
+        <button class="menu-item" id="expPNG" data-close>PNG…</button>
         <button class="menu-item" id="expJPG" data-close>JPG (sRGB)</button>
         <button class="menu-item" id="expAscii" data-close>ASCII art (.txt)</button>
         <button class="menu-item" id="expGrid" data-close>Grille de couleurs (.txt)</button>
@@ -757,6 +763,46 @@
       <p class="fx-foot-note">Aperçu en direct sur le dessin — rien n'est appliqué tant que tu n'as pas validé.</p>
       <button class="mini" id="pixelizeCancel">Annuler</button>
       <button class="menu-btn active" id="pixelizeOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Appliquer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="pngModal">
+  <div class="modal" style="width:min(460px,92vw)" role="dialog" aria-label="Exporter en PNG">
+    <header><h2>Exporter en PNG</h2><button class="modal-x" id="pngClose" title="Annuler" aria-label="Annuler">×</button></header>
+    <div class="body">
+      <div class="pref" style="display:block;border-bottom:none;padding-bottom:4px">
+        <div class="lbl" style="margin-bottom:8px">Nom du fichier</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="text" id="pngName" maxlength="60" spellcheck="false" autocomplete="off"
+            style="flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 8px;font-size:13px">
+          <span style="font:12px var(--mono);color:var(--ink-dim)">.png</span>
+        </div>
+      </div>
+      <div class="pref" style="display:block;border-bottom:none;padding-top:10px">
+        <div class="lbl" style="margin-bottom:8px">Taille<small>Chaque pixel du dessin devient un carré de N×N pixels</small></div>
+        <div class="scale-picker" id="pngScalePicker"></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:10px">
+          <span style="font-size:12px;color:var(--ink-dim)">Personnalisée ×</span>
+          <input type="number" id="pngScale" min="1" max="64" value="15" style="width:64px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)">
+        </div>
+      </div>
+      <div class="pref">
+        <div class="lbl">Couleur de fond<small>Sinon les zones vides restent transparentes</small></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <label class="switch"><input type="checkbox" id="pngBgOn"><span class="sl"></span></label>
+          <button class="fxsw" id="pngBgColor" title="Choisir la couleur de fond" disabled></button>
+        </div>
+      </div>
+      <div class="pref" style="border-bottom:none">
+        <div class="lbl">Image finale</div>
+        <span class="exp-sum" id="pngSummary">—</span>
+      </div>
+      <p class="note" id="pngWarn" hidden></p>
+    </div>
+    <div class="foot">
+      <button class="mini" id="pngCancel">Annuler</button>
+      <button class="menu-btn active" id="pngOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Exporter</button>
     </div>
   </div>
 </div>

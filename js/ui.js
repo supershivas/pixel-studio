@@ -208,7 +208,7 @@ function buildCpSwatches(){
   });
 }
 let _cpCb=null;
-function openColorPicker(anchorEl, initialHex, cb){ _cpCb=cb||null;
+export function openColorPicker(anchorEl, initialHex, cb){ _cpCb=cb||null;
   const hs=hexToHsvSafe(initialHex)||[210,1,0.6]; [cpH,cpS,cpV]=hs; updatePicker();
   document.getElementById("cpAdd").textContent=_cpCb?"OK":"Ajouter";
   colorPop.hidden=false; const r=anchorEl.getBoundingClientRect();

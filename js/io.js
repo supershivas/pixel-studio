@@ -168,7 +168,7 @@ export function buildProjectObject(){
   return { format:"pixel", version:5, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
     layers:encodeLayers(state.layers), frames:framesSnapshotForSave() };
 }
-document.getElementById("saveProj").onclick=()=>{
+export function saveProjectFile(){
   const proj=buildProjectObject();
   const blob=new Blob([JSON.stringify(proj)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
@@ -176,7 +176,8 @@ document.getElementById("saveProj").onclick=()=>{
   setTimeout(()=>URL.revokeObjectURL(url),3000);
   pushRecent();
   showToast("Projet enregistré.",{type:"success"});
-};
+}
+document.getElementById("saveProj").onclick=saveProjectFile;
 document.getElementById("openProj").onclick=()=>document.getElementById("fileInput").click();
 document.getElementById("fileInput").onchange=e=>{
   const f=e.target.files[0]; if(!f) return;

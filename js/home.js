@@ -3,7 +3,7 @@ import { newLayer, newImageLayer, render } from "./helpers.js";
 import { snapshot, history } from "./history.js";
 import { fitZoom } from "./interaction.js";
 import { buildLayers, resetToBlankProject } from "./ui.js";
-import { loadProject, syncPresetToSize, getRecents, removeRecent, pushRecent } from "./io.js";
+import { loadProject, syncPresetToSize, getRecents, removeRecent, pushRecent, saveProjectFile } from "./io.js";
 import { initFrames } from "./frames.js";
 import { showToast } from "./toast.js";
 
@@ -51,12 +51,58 @@ export function openHome(){
 }
 function closeHome(){ homeModal.classList.remove("open"); }
 
-document.getElementById("miClose").onclick=openHome;
 document.getElementById("homeClose").onclick=closeHome;
 homeModal.addEventListener("click",e=>{ if(e.target===homeModal) closeHome(); });
 
 document.getElementById("homeNew").onclick=()=>{ resetToBlankProject(); closeHome(); };
 document.getElementById("homeOpen").onclick=()=>document.getElementById("fileInput").click();
+
+// ---------- Modale « enregistrer avant de quitter le projet » ----------
+// Utilisée par Fermer le projet (⌘/Ctrl+W) et Nouvelle image (⌘/Ctrl+N).
+const saveAskModal=document.getElementById("saveAskModal");
+let _saveAskThen=null;
+function askSave({title,msg,onProceed}){
+  _saveAskThen=onProceed;
+  document.getElementById("saveAskTitle").textContent=title;
+  document.getElementById("saveAskMsg").textContent=msg;
+  saveAskModal.classList.add("open");
+}
+export function closeSaveAsk(){ saveAskModal.classList.remove("open"); _saveAskThen=null; }
+function saveAskRun(save){
+  const then=_saveAskThen; closeSaveAsk();
+  if(!then) return;
+  if(save) saveProjectFile();
+  then();
+}
+document.getElementById("saveAskCancel").onclick=closeSaveAsk;
+document.getElementById("saveAskClose").onclick=closeSaveAsk;
+saveAskModal.addEventListener("click",e=>{ if(e.target===saveAskModal) closeSaveAsk(); });
+document.getElementById("saveAskSkip").onclick=()=>saveAskRun(false);
+document.getElementById("saveAskSave").onclick=()=>saveAskRun(true);
+
+export function requestCloseProject(){
+  if(homeModal.classList.contains("open")) return;
+  askSave({ title:"Fermer le projet", msg:"Enregistrer le projet avant de le fermer ?", onProceed:openHome });
+}
+export function requestNewProject(){
+  askSave({ title:"Nouvelle image", msg:"Enregistrer le projet avant de repartir d'une image vierge ?",
+    onProceed:()=>{ resetToBlankProject(); closeHome(); showToast("Nouvelle image.",{type:"success"}); } });
+}
+document.getElementById("miClose").onclick=requestCloseProject;
+document.getElementById("miNew").onclick=requestNewProject;
+
+// ---------- Raccourcis projet ----------
+// ⌘/Ctrl+W et ⌘/Ctrl+N sont réservés par certains navigateurs (fermer l'onglet / nouvelle fenêtre) :
+// on les intercepte quand c'est possible — c'est toujours le cas en application installée (PWA).
+window.addEventListener("keydown",e=>{
+  if(!(e.ctrlKey||e.metaKey) || e.altKey || e.shiftKey) return;
+  const k=e.key.toLowerCase();
+  if(k==="w"){ e.preventDefault(); requestCloseProject(); }
+  else if(k==="n"){ e.preventDefault(); requestNewProject(); }
+});
+window.addEventListener("keydown",e=>{
+  if(e.key==="Escape" && saveAskModal.classList.contains("open")){ e.stopPropagation(); closeSaveAsk(); }
+},true);
 
 // ---------- Nouveau projet à partir d'une image (Fond + calque image importé) ----------
 function newProjectFromImage(file){

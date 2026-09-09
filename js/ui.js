@@ -218,28 +218,45 @@ function closeColorPop(){ colorPop.hidden=true; _cpCb=null; }
 document.getElementById("addColorBtn").onclick=e=>{ e.stopPropagation(); closeMenus(); if(colorPop.hidden) openColorPicker(document.getElementById("addColorBtn"), state.color, null); else closeColorPop(); };
 document.addEventListener("click",e=>{ if(!colorPop.hidden && !colorPop.contains(e.target) && e.target.id!=="addColorBtn" && !e.target.classList.contains("fxsw")) closeColorPop(); });
 
-// ---------- Effets de calque (double-clic) ----------
-let fxLayer=null;
+// ---------- Options du calque & effets ----------
+// Les effets sont pré-appliqués en direct sur le dessin pendant qu'on règle les paramètres,
+// mais ils ne sont réellement validés (et versés dans l'historique) qu'à la validation de la
+// modale : « Annuler » remet le calque exactement dans l'état où il était à l'ouverture.
+let fxLayer=null, fxOrig=null, fxDirty=false;
+const fxModalEl=document.getElementById("fxModal");
 function ensureFx(L){ if(!L.fx) L.fx={color:null,stroke:{on:false,width:1,color:"#141428"},shadow:{on:false,dx:1,dy:1,color:"#141428"}}; return L.fx; }
+// instantané des propriétés que la modale peut modifier (l'isolation est une vue globale, hors périmètre)
+function layerSnap(L){
+  return { data:L.data?L.data.slice():null, ox:L.ox||0, oy:L.oy||0,
+    text:L.text?{...L.text}:null, fx:L.fx?JSON.parse(JSON.stringify(L.fx)):null,
+    blend:L.blend||"normal", opacity:L.opacity, locked:!!L.locked, alphaLock:!!L.alphaLock };
+}
+function applyLayerSnap(L,s){
+  if(s.data) L.data=s.data.slice();
+  L.ox=s.ox; L.oy=s.oy;
+  L.text=s.text?{...s.text}:null;
+  L.fx=s.fx?JSON.parse(JSON.stringify(s.fx)):null;
+  L.blend=s.blend; L.opacity=s.opacity; L.locked=s.locked; L.alphaLock=s.alphaLock;
+}
 function reRasterTextLayer(L){ const t=L.text; if(!t) return;
   const g=(t.font==="micro")?rasterizeMicro(t.string,t.scale):rasterizeTTF(t.string,t.font,t.scale);
   const ax=t.ax+(L.ox||0), ay=t.ay+(L.oy||0);
   L.data=new Array(state.W*state.H).fill(null); L.ox=0; L.oy=0; t.ax=ax; t.ay=ay;
   for(const [dx,dy] of g.cells){ const x=ax+dx,y=ay+dy; if(inBounds(x,y)) L.data[idx(x,y)]=t.color; } }
-function recolorLayer(L,hex){ if(L.img) return; snapshot();
+// recoloration : simple aperçu, l'historique est géré à la validation
+function recolorLayer(L,hex){ if(L.img) return;
   if(L.text){ L.text.color=hex; reRasterTextLayer(L); }
   else { for(let i=0;i<L.data.length;i++) if(L.data[i]!==null) L.data[i]=hex; }
-  state.thumbsDirty=true; render(); buildLayers(); }
-function fxApply(){ state.thumbsDirty=true; render(); buildLayers(); }
+  fxApply(); }
+function fxApply(){ fxDirty=true; state.thumbsDirty=true; render(); buildLayers(); }
 // ---------- Navigation de la modale Options du calque (liste des effets à gauche) ----------
 function showFxPane(id){
   document.querySelectorAll(".fx-nav-item").forEach(el=>el.classList.toggle("active",el.dataset.fx===id));
   document.querySelectorAll(".fx-pane").forEach(el=>el.classList.toggle("active",el.dataset.fxPane===id));
 }
 document.querySelectorAll(".fx-nav-item").forEach(el=>el.addEventListener("click",()=>showFxPane(el.dataset.fx)));
-function openFxModal(L){
-  fxLayer=L; const isImg=!!L.img; const fx=ensureFx(L);
-  showFxPane("blend");
+function fillFxControls(L){
+  const isImg=!!L.img; const fx=ensureFx(L);
   document.getElementById("fxBlend").value=L.blend||"normal";
   document.getElementById("fxOpacity").value=Math.round(L.opacity*100);
   document.getElementById("fxLock").checked=!!L.locked;
@@ -257,16 +274,44 @@ function openFxModal(L){
   document.getElementById("fxShadowDX").value=fx.shadow.dx;
   document.getElementById("fxShadowDY").value=fx.shadow.dy;
   document.getElementById("fxShadowColor").style.background=fx.shadow.color;
-  document.getElementById("fxModal").classList.add("open");
+}
+export function openFxModal(L,pane){
+  if(!L || L.isGroup) return;
+  if(fxLayer && fxLayer!==L) fxCancel();     // changement de calque en cours de route : on n'accumule pas
+  fxLayer=L; fxOrig=layerSnap(L); fxDirty=false;
+  fillFxControls(L);
+  showFxPane(pane||"blend");
+  fxModalEl.classList.add("open");
+}
+// entrée depuis le menu Effets : ouvre directement la bonne rubrique pour le calque actif
+export function openLayerFx(pane){
+  const L=state.layers[state.active];
+  if(!L || L.isGroup){ showToast("Sélectionne d'abord un calque.",{type:"warn"}); return; }
+  openFxModal(L,pane);
+}
+function closeFxModal(){ fxModalEl.classList.remove("open"); fxLayer=null; fxOrig=null; fxDirty=false; }
+export function fxCancel(){
+  if(fxLayer && fxOrig && fxDirty){ applyLayerSnap(fxLayer,fxOrig); state.thumbsDirty=true; buildLayers(); render(); }
+  closeFxModal();
+}
+function fxCommit(){
+  if(fxLayer && fxOrig && fxDirty){
+    const after=layerSnap(fxLayer);
+    applyLayerSnap(fxLayer,fxOrig);   // on revient à l'état d'origine…
+    snapshot();                       // …pour que l'annulation (Ctrl/⌘Z) y ramène…
+    applyLayerSnap(fxLayer,after);    // …puis on repose le résultat des réglages
+    state.thumbsDirty=true; buildLayers(); render();
+  }
+  closeFxModal();
 }
 document.getElementById("fxBlend").onchange=e=>{ if(fxLayer){ fxLayer.blend=e.target.value; fxApply(); } };
 document.getElementById("fxOpacity").oninput=e=>{ if(fxLayer){ fxLayer.opacity=+e.target.value/100; fxApply(); } };
-document.getElementById("fxLock").onchange=e=>{ if(fxLayer){ fxLayer.locked=e.target.checked; openFxModal(fxLayer); fxApply(); } };
+document.getElementById("fxLock").onchange=e=>{ if(fxLayer){ fxLayer.locked=e.target.checked; fillFxControls(fxLayer); fxApply(); } };
 document.getElementById("fxAlphaLock").onchange=e=>{ if(fxLayer){ fxLayer.alphaLock=e.target.checked; fxApply(); } };
 document.getElementById("fxSolo").onchange=e=>{ if(fxLayer){ setSolo(fxLayer.id); render(); buildLayers(); } };
 function mirrorLayerData(L,axis){
   if(!L || L.img || L.text || L.locked) return;
-  snapshot(); bakeOffset(L);
+  bakeOffset(L);
   const nd=new Array(state.W*state.H).fill(null);
   for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){
     const v=L.data[y*state.W+x]; if(v===null) continue;
@@ -274,7 +319,7 @@ function mirrorLayerData(L,axis){
     const ny = axis==="v" ? (state.H-1-y) : y;
     nd[ny*state.W+nx]=v;
   }
-  L.data=nd; state.thumbsDirty=true; buildLayers(); render();
+  L.data=nd; fxApply();
 }
 document.getElementById("fxMirrorH").onclick=()=>mirrorLayerData(fxLayer,"h");
 document.getElementById("fxMirrorV").onclick=()=>mirrorLayerData(fxLayer,"v");
@@ -287,13 +332,12 @@ document.getElementById("fxShadowOn").onchange=e=>{ const f=_fx(); if(f){ f.shad
 document.getElementById("fxShadowDX").oninput=e=>{ const f=_fx(); if(f){ f.shadow.dx=+e.target.value||0; if(f.shadow.on) fxApply(); } };
 document.getElementById("fxShadowDY").oninput=e=>{ const f=_fx(); if(f){ f.shadow.dy=+e.target.value||0; if(f.shadow.on) fxApply(); } };
 document.getElementById("fxShadowColor").onclick=()=>{ const f=_fx(); if(!f) return; openColorPicker(document.getElementById("fxShadowColor"), f.shadow.color, hex=>{ f.shadow.color=hex; document.getElementById("fxShadowColor").style.background=hex; if(f.shadow.on) fxApply(); }); };
-document.getElementById("fxResetBtn").onclick=()=>{ if(fxLayer){ fxLayer.fx=null; ensureFx(fxLayer);
-  const fx=fxLayer.fx; document.getElementById("fxStrokeOn").checked=false; document.getElementById("fxStrokeW").value=1;
-  document.getElementById("fxShadowOn").checked=false; document.getElementById("fxShadowDX").value=1; document.getElementById("fxShadowDY").value=1;
-  document.getElementById("fxStrokeColor").style.background=fx.stroke.color; document.getElementById("fxShadowColor").style.background=fx.shadow.color; fxApply(); } };
-document.getElementById("fxClose").onclick=()=>document.getElementById("fxModal").classList.remove("open");
-document.getElementById("fxOk").onclick=()=>document.getElementById("fxModal").classList.remove("open");
-document.getElementById("fxModal").addEventListener("click",e=>{ if(e.target.id==="fxModal") e.currentTarget.classList.remove("open"); });
+document.getElementById("fxResetBtn").onclick=()=>{ if(!fxLayer) return; fxLayer.fx=null; ensureFx(fxLayer);
+  fillFxControls(fxLayer); fxApply(); };
+document.getElementById("fxClose").onclick=fxCancel;
+document.getElementById("fxCancel").onclick=fxCancel;
+document.getElementById("fxOk").onclick=fxCommit;
+fxModalEl.addEventListener("click",e=>{ if(e.target.id==="fxModal") fxCancel(); });
 buildSwatches();
 
 // ---------- Layers UI ----------
@@ -342,6 +386,43 @@ function moveLayer(srcId,tgtId,zone){
   state.active=state.layers.indexOf(activeLayer);
   buildLayers(); render();
 }
+// sélection d'un calque (simple clic sur la ligne, ou clic droit avant d'ouvrir le menu contextuel)
+function selectLayer(L){
+  if(L.isGroup) return;
+  if(state.activeShape) bakeShape();
+  if(state.floatSel) commitFloat();
+  const ni=state.layers.indexOf(L); if(ni<0) return;
+  if(ni!==state.active){ state.active=ni; buildLayers(); }
+}
+// renommage : le nom est un simple texte, échangé contre un champ de saisie au double-clic
+function startRename(L,el,row){
+  const inp=document.createElement("input"); inp.className="nm"; inp.value=L.name; inp.spellcheck=false;
+  el.replaceWith(inp); row.draggable=false;
+  inp.focus(); inp.select();
+  let done=false;
+  const finish=commit=>{ if(done) return; done=true;
+    if(commit){ const v=inp.value.trim(); if(v) L.name=v; }
+    row.draggable=true; buildLayers(); };
+  inp.addEventListener("blur",()=>finish(true));
+  inp.addEventListener("click",e=>e.stopPropagation());
+  inp.addEventListener("dblclick",e=>e.stopPropagation());
+  inp.addEventListener("keydown",e=>{ e.stopPropagation();
+    if(e.key==="Enter"){ e.preventDefault(); finish(true); }
+    else if(e.key==="Escape"){ e.preventDefault(); finish(false); } });
+}
+function nameEl(L,row){
+  const nm=document.createElement("span"); nm.className="nm"; nm.textContent=L.name;
+  nm.title="Double-clic pour renommer";
+  // on repasse par le DOM courant : le simple clic qui précède le double-clic a pu reconstruire la liste
+  nm.addEventListener("dblclick",e=>{ e.stopPropagation(); startRenameLayer(L); });
+  return nm;
+}
+export function startRenameLayer(L){
+  if(!L) return;
+  const row=layersEl.querySelector('.layer[data-id="'+L.id+'"]');
+  const el=row && row.querySelector("span.nm");
+  if(el) startRename(L,el,row);
+}
 function layerRow(L,indent){
   const row=document.createElement("div");
   row.className="layer"+(indent?" grouped":"")+(state.layers.indexOf(L)===state.active?" active":"")+(L.img?" imglayer":"");
@@ -361,6 +442,8 @@ function layerRow(L,indent){
     const src=state.layers.find(l=>l.id===dragId);
     const zone=dropZone(e,row,!!L.isGroup, src&&src.isGroup);
     clearDropMarks(); if(dragId!=null) moveLayer(dragId,L.id,zone); dragId=null; });
+  row.addEventListener("contextmenu",e=>{ e.preventDefault(); e.stopPropagation();
+    selectLayer(L); openLayerContextMenu(e.clientX,e.clientY); });
   return {row,grip,vis};
 }
 export function buildLayers(){
@@ -374,11 +457,7 @@ export function buildLayers(){
       const chev=document.createElement("button"); chev.className="chevron"; chev.title=L.expanded?"Replier":"Déplier";
       chev.innerHTML=L.expanded?"▾":"▸";
       chev.addEventListener("click",e=>{ e.stopPropagation(); L.expanded=!L.expanded; buildLayers(); });
-      const nm=document.createElement("input"); nm.className="nm"; nm.value=L.name;
-      nm.addEventListener("input",()=>L.name=nm.value);
-      nm.addEventListener("click",e=>e.stopPropagation());
-      nm.addEventListener("focus",()=>row.draggable=false);
-      nm.addEventListener("blur",()=>row.draggable=true);
+      const nm=nameEl(L,row);
       const trash=document.createElement("button"); trash.className="trash"; trash.title="Supprimer le dossier et son contenu";
       trash.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M6 7l1 12h10l1-12" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
       trash.addEventListener("click",e=>{ e.stopPropagation(); deleteGroup(L); });
@@ -391,14 +470,10 @@ export function buildLayers(){
     if(L.locked) row.classList.add("locked");
     if(isSolo(L.id)) row.classList.add("solo");
     const thumb=document.createElement("canvas"); thumb.className="thumb"; thumb.width=state.W; thumb.height=state.H;
-    thumb._layer=L;
+    thumb._layer=L; thumb.title="Double-clic pour ouvrir les options du calque";
+    thumb.addEventListener("dblclick",e=>{ e.stopPropagation(); selectLayer(L); openFxModal(L); });
     const col=document.createElement("div"); col.className="lcol";
-    const nm=document.createElement("input"); nm.className="nm"; nm.value=L.name;
-    nm.addEventListener("input",()=>L.name=nm.value);
-    nm.addEventListener("click",e=>e.stopPropagation());
-    nm.addEventListener("focus",()=>row.draggable=false);
-    nm.addEventListener("blur",()=>row.draggable=true);
-    col.append(nm);
+    col.append(nameEl(L,row));
     const badges=[];
     if(L.img){ const b=document.createElement("span"); b.className="imgbadge"; b.textContent="IMG"; b.title="Calque image (référence, non exporté)"; badges.push(b); }
     if(L.locked){ const b=document.createElement("span"); b.className="imgbadge lockbadge"; b.textContent="🔒"; b.title="Calque verrouillé"; badges.push(b); }
@@ -406,7 +481,7 @@ export function buildLayers(){
     const opts=document.createElement("button"); opts.className="lopts"; opts.title="Options du calque (opacité, fusion, verrouillage, isolation, contour, ombre…)";
     opts.textContent="⚙"; opts.addEventListener("click",e=>{ e.stopPropagation(); openFxModal(L); });
     row.append(grip,vis,thumb,col,...badges,opts);
-    row.addEventListener("click",()=>{ if(state.activeShape) bakeShape(); if(state.floatSel) commitFloat(); const ni=state.layers.indexOf(L); if(ni>=0) state.active=ni; buildLayers(); });
+    row.addEventListener("click",()=>selectLayer(L));
     layersEl.appendChild(row);
   }
   refreshThumbs();
@@ -482,6 +557,13 @@ document.getElementById("addLayerBtn").onclick=addLayerAction;
 document.getElementById("dupLayer").onclick=()=>{ if(state.activeShape) bakeShape(); duplicateLayer(state.active); };
 document.getElementById("delLayer").onclick=()=>{ if(state.activeShape) bakeShape(); deleteLayer(state.active); };
 document.getElementById("delLayerBtn").onclick=()=>{ if(state.activeShape) bakeShape(); deleteLayer(state.active); };
+document.getElementById("renameLayer").onclick=()=>startRenameLayer(state.layers[state.active]);
+document.getElementById("layerOptions").onclick=()=>openLayerFx("blend");
+document.getElementById("layerEffects").onclick=()=>openLayerFx("color");
+document.getElementById("fxGoColor").onclick=()=>openLayerFx("color");
+document.getElementById("fxGoMirror").onclick=()=>openLayerFx("mirror");
+document.getElementById("fxGoStroke").onclick=()=>openLayerFx("stroke");
+document.getElementById("fxGoShadow").onclick=()=>openLayerFx("shadow");
 // cibles de dépôt : glisser un calque sur + = dupliquer, sur poubelle = supprimer
 function makeLayerDrop(btn, action){
   btn.addEventListener("dragover",e=>{ if(dragId==null) return; e.preventDefault(); btn.classList.add("drop-hot"); });
@@ -762,8 +844,19 @@ export function resize(w,h){
 }
 
 // ---------- Barre de menus ----------
-function closeMenus(){ document.querySelectorAll(".menu").forEach(m=>m.classList.remove("open"));
+function closeMenus(){ document.querySelectorAll(".menu").forEach(m=>{ m.classList.remove("open","ctx"); m.style.left=""; m.style.top=""; });
   document.querySelectorAll(".menu-btn").forEach(b=>b.classList.remove("active")); }
+// clic droit sur un calque : on réutilise tel quel le menu Calque, repositionné sous le curseur
+function openLayerContextMenu(x,y){
+  closeMenus();
+  const m=document.getElementById("menu-layer");
+  m.classList.add("open","ctx");
+  const r=m.getBoundingClientRect();
+  m.style.left=Math.max(4,Math.min(x, window.innerWidth -r.width -8))+"px";
+  m.style.top =Math.max(4,Math.min(y, window.innerHeight-r.height-8))+"px";
+}
+window.addEventListener("blur",closeMenus);
+window.addEventListener("resize",closeMenus);
 document.querySelectorAll(".menu-btn").forEach(btn=>{
   btn.addEventListener("click",e=>{ e.stopPropagation();
     const m=document.getElementById("menu-"+btn.dataset.menu); if(!m) return;
@@ -774,7 +867,7 @@ document.querySelectorAll(".menu").forEach(menu=>{
   menu.addEventListener("click",e=>{ e.stopPropagation(); if(e.target.closest("[data-close]")) closeMenus(); });
 });
 document.addEventListener("click",closeMenus);
-window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden){ closeColorPop(); return; } if(state.cropRect){ state.cropRect=null; render(); return; } if(state.activeShape){ cancelShape(); return; } if(state.floatSel){ commitFloat(); state.sel=null; render(); return; } if(state.sel){ state.sel=null; render(); return; } if(document.getElementById("confirmModal").classList.contains("open")){ closeConfirm(); return; } closeMenus(); document.getElementById("prefsModal").classList.remove("open"); document.getElementById("sizeModal").classList.remove("open"); document.getElementById("fxModal").classList.remove("open"); } });
+window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden){ closeColorPop(); return; } if(state.cropRect){ state.cropRect=null; render(); return; } if(state.activeShape){ cancelShape(); return; } if(state.floatSel){ commitFloat(); state.sel=null; render(); return; } if(state.sel){ state.sel=null; render(); return; } if(document.getElementById("confirmModal").classList.contains("open")){ closeConfirm(); return; } if(document.getElementById("fxModal").classList.contains("open")){ fxCancel(); return; } closeMenus(); document.getElementById("prefsModal").classList.remove("open"); document.getElementById("sizeModal").classList.remove("open"); } });
 
 export function resetToBlankProject(){
   state.projectId=null;
@@ -784,10 +877,6 @@ export function resetToBlankProject(){
   history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();
 }
-document.getElementById("miNew").onclick=()=>{
-  if(prefs.confirm && !confirm("Nouvelle image ? Le travail non enregistré sera perdu.")) return;
-  resetToBlankProject();
-};
 
 // ---------- Préférences ----------
 export const prefs={ stageBg:"#0d1424", checker:true, checkerContrast:50, gridAlpha:0.08, wheelZoom:false,

@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.6.0";
+export const APP_VERSION = "1.7.0";
 
 // ---------- Palette : 16 teintes flashy, bleu + jaune UE inclus ----------
 export const PALETTE = [
@@ -43,6 +43,7 @@ export const state = {
   thumbsDirty: true,
 
   customColors: [],
+  projectName: "Sans titre",   // nom du projet : en-tête, fichier .pixel, projets récents et noms d'export
   projectId: null,   // identifiant transitoire du projet courant, pour mettre à jour (plutôt que dupliquer) son entrée dans les projets récents
 
   previewCells: null, // Map "x,y"->color for in-progress shape

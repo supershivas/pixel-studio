@@ -878,16 +878,100 @@ document.querySelectorAll(".menu").forEach(menu=>{
   menu.addEventListener("click",e=>{ e.stopPropagation(); if(e.target.closest("[data-close]")) closeMenus(); });
 });
 document.addEventListener("click",closeMenus);
-window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden){ closeColorPop(); return; } if(state.cropRect){ state.cropRect=null; render(); return; } if(state.activeShape){ cancelShape(); return; } if(state.floatSel){ commitFloat(); state.sel=null; render(); return; } if(state.sel){ state.sel=null; render(); return; } if(document.getElementById("confirmModal").classList.contains("open")){ closeConfirm(); return; } if(document.getElementById("fxModal").classList.contains("open")){ fxCancel(); return; } closeMenus(); document.getElementById("prefsModal").classList.remove("open"); document.getElementById("sizeModal").classList.remove("open"); } });
+window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden){ closeColorPop(); return; } if(state.cropRect){ state.cropRect=null; render(); return; } if(state.activeShape){ cancelShape(); return; } if(state.floatSel){ commitFloat(); state.sel=null; render(); return; } if(state.sel){ state.sel=null; render(); return; } if(document.getElementById("confirmModal").classList.contains("open")){ closeConfirm(); return; } if(newModal.classList.contains("open")){ closeNewModal(); return; } if(document.getElementById("fxModal").classList.contains("open")){ fxCancel(); return; } closeMenus(); document.getElementById("prefsModal").classList.remove("open"); document.getElementById("sizeModal").classList.remove("open"); } });
 
-export function resetToBlankProject(){
-  state.projectId=null;
-  state.activeShape=null; state.txOp=null; state.previewCells=null; state.sel=null; state.floatSel=null; state.cropRect=null;
-  state.layerSeq=1; state.layers=[newLayer("Fond"),newLayer("Dessin")]; state.active=1;
-  initFrames();
-  history.length=0; state.histPtr=-1; snapshot();
-  buildLayers(); fitZoom();
+// ---------- Nom du projet ----------
+const docNameEl=document.getElementById("docName");
+export function setProjectName(name){
+  state.projectName=(name||"").trim().slice(0,60)||"Sans titre";
+  docNameEl.value=state.projectName;
+  document.title=state.projectName+" — Pixel Studio";
 }
+docNameEl.addEventListener("input",()=>{ state.projectName=docNameEl.value.trim().slice(0,60)||"Sans titre";
+  document.title=state.projectName+" — Pixel Studio"; });
+docNameEl.addEventListener("blur",()=>setProjectName(docNameEl.value));
+docNameEl.addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter"||e.key==="Escape") docNameEl.blur(); });
+
+// ---------- Nouveau projet ----------
+// Crée un projet vierge : nom, dimensions, repères de coupe et couleur de fond éventuelle.
+export function newProject({name,w,h,guides,scale,bg}={}){
+  state.projectId=null;
+  state.activeShape=null; state.txOp=null; state.previewCells=null;
+  state.sel=null; state.floatSel=null; state.cropRect=null;
+  if(w&&h){ state.W=Math.max(8,Math.min(512,w|0)); state.H=Math.max(8,Math.min(512,h|0)); }
+  state.guides=guides||null;
+  state.layerSeq=1;
+  const bgLayer=newLayer("Fond");
+  if(bg) bgLayer.data.fill(bg);
+  state.layers=[bgLayer,newLayer("Dessin")]; state.active=1;
+  initFrames();
+  setProjectName(name);
+  if(scale) document.getElementById("expScale").value=scale;
+  syncPresetToSize();
+  invalidateCropForNewSize();
+  history.length=0; state.histPtr=-1; snapshot();
+  buildLayers(); fitZoom(); render();
+}
+export function resetToBlankProject(){ newProject({name:state.projectName}); }
+
+// ---------- Modale « Nouvelle image » ----------
+const newModal=document.getElementById("newModal");
+const newPresetSel=document.getElementById("newPreset");
+newPresetSel.innerHTML=presetSel.innerHTML;      // mêmes formats que « Taille de l'image »
+const newBgOn=document.getElementById("newBgOn"), newBgSw=document.getElementById("newBgColor");
+let newBgHex="#FFFFFF";
+function newDims(){
+  const v=newPresetSel.value;
+  if(v==="custom"){
+    const cw=Math.max(8,Math.min(512,+document.getElementById("newW").value||96));
+    const ch=Math.max(8,Math.min(512,+document.getElementById("newH").value||96));
+    return {w:cw,h:ch,g:null,scale:null};
+  }
+  const p=PRESETS[v]||PRESETS["50x70"];
+  return {w:p.w,h:p.h,g:p.g,scale:p.scale};
+}
+function refreshNewModal(){
+  const custom=newPresetSel.value==="custom";
+  document.getElementById("newCustomWH").hidden=!custom;
+  const d=newDims();
+  newBgSw.disabled=!newBgOn.checked;
+  newBgSw.style.background=newBgOn.checked?newBgHex:"transparent";
+  document.getElementById("newNote").textContent =
+    `${d.w} × ${d.h} pixels`+(d.scale?` · export conseillé ×${d.scale}`:"")+(d.g?" · avec repères de coupe":"");
+}
+export function openNewModal(){
+  document.getElementById("newName").value="";
+  const cur=presetSel.value;
+  newPresetSel.value=(cur&&(PRESETS[cur]||cur==="custom"))?cur:"50x70";
+  document.getElementById("newW").value=state.W;
+  document.getElementById("newH").value=state.H;
+  newBgOn.checked=false;
+  refreshNewModal();
+  newModal.classList.add("open");
+  setTimeout(()=>document.getElementById("newName").focus(),0);
+}
+export function closeNewModal(){ newModal.classList.remove("open"); }
+function confirmNewProject(){
+  const d=newDims();
+  const name=document.getElementById("newName").value;
+  closeNewModal();
+  newProject({ name:name||"Sans titre", w:d.w, h:d.h, guides:d.g, scale:d.scale, bg:newBgOn.checked?newBgHex:null });
+  showToast("Nouveau projet « "+state.projectName+" » ("+d.w+"×"+d.h+").",{type:"success"});
+}
+newPresetSel.onchange=refreshNewModal;
+document.getElementById("newW").oninput=refreshNewModal;
+document.getElementById("newH").oninput=refreshNewModal;
+newBgOn.onchange=refreshNewModal;
+newBgSw.onclick=()=>openColorPicker(newBgSw, newBgHex, hex=>{ newBgHex=hex; refreshNewModal(); });
+document.getElementById("newCancel").onclick=closeNewModal;
+document.getElementById("newClose").onclick=closeNewModal;
+newModal.addEventListener("click",e=>{ if(e.target.id==="newModal") closeNewModal(); });
+document.getElementById("newOk").onclick=confirmNewProject;
+document.getElementById("newName").addEventListener("keydown",e=>{ e.stopPropagation();
+  if(e.key==="Enter"){ e.preventDefault(); confirmNewProject(); }
+  else if(e.key==="Escape"){ e.preventDefault(); closeNewModal(); } });
+document.getElementById("newW").addEventListener("keydown",e=>{ if(e.key==="Escape") closeNewModal(); });
+document.getElementById("newH").addEventListener("keydown",e=>{ if(e.key==="Escape") closeNewModal(); });
 
 // ---------- Préférences ----------
 export const prefs={ stageBg:"#0d1424", checker:true, checkerContrast:50, gridAlpha:0.08, wheelZoom:false,

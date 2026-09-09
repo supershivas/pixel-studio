@@ -3,7 +3,7 @@ import { compositeLayers, newLayer, newImageLayer, render, encodeLayers, decodeL
 import { snapshot, history, onSnapshot } from "./history.js";
 import { bakeShape } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
-import { buildLayers, buildSwatches, presetSel, PRESETS } from "./ui.js";
+import { buildLayers, buildSwatches, presetSel, PRESETS, setProjectName } from "./ui.js";
 import { showToast } from "./toast.js";
 import { framesSnapshotForSave, loadFramesFromSave } from "./frames.js";
 
@@ -44,13 +44,13 @@ function stamp2(){ return new Date().toISOString().slice(0,10); }
 function safeName(s){ return (s||"").trim().replace(/[^\w\-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"carte"; }
 
 document.getElementById("expPNG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download(flattenCanvas(state.layers,s,false).toDataURL("image/png"),`pixel_${state.W}x${state.H}_x${s}.png`);
+  download(flattenCanvas(state.layers,s,false).toDataURL("image/png"),`${safeName(state.projectName)}_${state.W}x${state.H}_x${s}.png`);
   showToast("PNG exporté.",{type:"success"}); };
 document.getElementById("expJPG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download(flattenCanvas(state.layers,s,true).toDataURL("image/jpeg",0.95),`pixel_${state.W}x${state.H}_x${s}.jpg`);
+  download(flattenCanvas(state.layers,s,true).toDataURL("image/jpeg",0.95),`${safeName(state.projectName)}_${state.W}x${state.H}_x${s}.jpg`);
   showToast("JPG exporté.",{type:"success"}); };
 document.getElementById("expSVG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svgString(state.layers,s)),`pixel_${state.W}x${state.H}.svg`);
+  download("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svgString(state.layers,s)),`${safeName(state.projectName)}_${state.W}x${state.H}.svg`);
   showToast("SVG exporté.",{type:"success"}); };
 
 // ---------- Export planche de sprites (PNG, toutes les frames en grille) ----------
@@ -67,7 +67,7 @@ document.getElementById("expSpriteSheet").onclick=()=>{
     const layers = i===state.activeFrame ? state.layers : f.layers;
     sctx.drawImage(flattenCanvas(layers,s,false), (i%cols)*cw, Math.floor(i/cols)*ch);
   });
-  download(sheet.toDataURL("image/png"), `spritesheet_${state.W}x${state.H}_${frames.length}f.png`);
+  download(sheet.toDataURL("image/png"), `${safeName(state.projectName)}_sprites_${state.W}x${state.H}_${frames.length}f.png`);
   showToast(`Planche de sprites exportée (${cols}×${rows}, ${frames.length} frames).`,{type:"success"});
 };
 
@@ -92,10 +92,10 @@ function colorGrid(){
   return out;
 }
 document.getElementById("expAscii").onclick=()=>{ if(state.activeShape) bakeShape();
-  download("data:text/plain;charset=utf-8,"+encodeURIComponent(asciiArt()),`pixel_${state.W}x${state.H}.ascii.txt`);
+  download("data:text/plain;charset=utf-8,"+encodeURIComponent(asciiArt()),`${safeName(state.projectName)}_${state.W}x${state.H}.ascii.txt`);
   showToast("ASCII art exporté.",{type:"success"}); };
 document.getElementById("expGrid").onclick=()=>{ if(state.activeShape) bakeShape();
-  download("data:text/plain;charset=utf-8,"+encodeURIComponent(colorGrid()),`pixel_${state.W}x${state.H}.grid.txt`);
+  download("data:text/plain;charset=utf-8,"+encodeURIComponent(colorGrid()),`${safeName(state.projectName)}_${state.W}x${state.H}.grid.txt`);
   showToast("Grille de couleurs exportée.",{type:"success"}); };
 
 // ---------- Export groupé (ZIP store, sans dépendance) ----------
@@ -165,14 +165,14 @@ document.getElementById("batchFiles").onchange=async e=>{
 // ---------- Projet .eu-pix ----------
 export function buildProjectObject(){
   if(state.activeShape) bakeShape();
-  return { format:"pixel", version:5, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
+  return { format:"pixel", version:6, name:state.projectName, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
     layers:encodeLayers(state.layers), frames:framesSnapshotForSave() };
 }
 export function saveProjectFile(){
   const proj=buildProjectObject();
   const blob=new Blob([JSON.stringify(proj)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
-  download(url,`pixel_${state.W}x${state.H}_${stamp2()}.pixel`);
+  download(url,`${safeName(state.projectName)}_${state.W}x${state.H}_${stamp2()}.pixel`);
   setTimeout(()=>URL.revokeObjectURL(url),3000);
   pushRecent();
   showToast("Projet enregistré.",{type:"success"});
@@ -210,7 +210,7 @@ export function getRecents(){
 export function pushRecent(){
   try{
     if(!state.projectId) state.projectId = (crypto.randomUUID ? crypto.randomUUID() : "id"+Date.now()+Math.random().toString(16).slice(2));
-    const entry={ id:state.projectId, name:`Carte ${state.W}×${state.H}`, date:Date.now(), w:state.W, h:state.H,
+    const entry={ id:state.projectId, name:`${state.projectName} · ${state.W}×${state.H}`, date:Date.now(), w:state.W, h:state.H,
       thumb:makeThumb(), proj:buildProjectObject() };
     let list=getRecents().filter(r=>r.id!==state.projectId);
     list.unshift(entry);
@@ -260,6 +260,7 @@ export function loadProject(p){
   state.activeShape=null; state.txOp=null; state.previewCells=null;
   state.W=Math.max(8,Math.min(512,p.w|0)); state.H=Math.max(8,Math.min(512,p.h|0));
   state.guides=p.guides||null; state.layerSeq=1;
+  setProjectName(p.name);            // fichiers v5 et antérieurs : pas de nom, on retombe sur « Sans titre »
   if(Array.isArray(p.customColors)){ state.customColors=p.customColors.slice(); buildSwatches(); }
   let raw, act=0;
   if(Array.isArray(p.cards)){ raw=(p.cards[0]&&p.cards[0].layers)||[]; }   // fichier multi-cartes : on ouvre la 1re carte

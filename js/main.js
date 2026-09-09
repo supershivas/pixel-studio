@@ -3,7 +3,7 @@ import { newLayer, render } from "./helpers.js";
 import { snapshot, onSnapshot } from "./history.js";
 import { FONTS, OS, updateTextGlyph } from "./drawing.js";
 import { fitZoom } from "./interaction.js";
-import { setColor, buildLayers, loadPrefs, applyPrefs } from "./ui.js";
+import { setColor, buildLayers, loadPrefs, applyPrefs, setProjectName } from "./ui.js";
 import { restoreAutosaveIfAny, scheduleAutosave } from "./io.js";
 import { initFrames } from "./frames.js";
 import "./home.js";
@@ -15,6 +15,7 @@ state.layerSeq=1;
 state.layers=[newLayer("Fond"),newLayer("Dessin")]; state.active=1;
 initFrames();
 setColor(state.color);
+setProjectName(state.projectName);
 buildLayers();
 snapshot();                    // état initial vierge : pas encore suivi par l'autosave
 applyPrefs();

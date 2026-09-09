@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { newLayer, newImageLayer, render } from "./helpers.js";
 import { snapshot, history } from "./history.js";
 import { fitZoom } from "./interaction.js";
-import { buildLayers, resetToBlankProject } from "./ui.js";
+import { buildLayers, openNewModal, setProjectName } from "./ui.js";
 import { loadProject, syncPresetToSize, getRecents, removeRecent, pushRecent, saveProjectFile } from "./io.js";
 import { initFrames } from "./frames.js";
 import { showToast } from "./toast.js";
@@ -54,7 +54,7 @@ function closeHome(){ homeModal.classList.remove("open"); }
 document.getElementById("homeClose").onclick=closeHome;
 homeModal.addEventListener("click",e=>{ if(e.target===homeModal) closeHome(); });
 
-document.getElementById("homeNew").onclick=()=>{ resetToBlankProject(); closeHome(); };
+document.getElementById("homeNew").onclick=()=>{ closeHome(); openNewModal(); };
 document.getElementById("homeOpen").onclick=()=>document.getElementById("fileInput").click();
 
 // ---------- Modale « enregistrer avant de quitter le projet » ----------
@@ -86,7 +86,7 @@ export function requestCloseProject(){
 }
 export function requestNewProject(){
   askSave({ title:"Nouvelle image", msg:"Enregistrer le projet avant de repartir d'une image vierge ?",
-    onProceed:()=>{ resetToBlankProject(); closeHome(); showToast("Nouvelle image.",{type:"success"}); } });
+    onProceed:()=>{ closeHome(); openNewModal(); } });
 }
 document.getElementById("miClose").onclick=requestCloseProject;
 document.getElementById("miNew").onclick=requestNewProject;
@@ -125,6 +125,7 @@ function newProjectFromImage(file){
       const imgLayer=newImageLayer(dataURL, (file.name||"Image").replace(/\.[^.]+$/,"").slice(0,20)||"Image");
       state.layers=[bg,imgLayer]; state.active=1;
       initFrames();
+      setProjectName((file.name||"").replace(/\.[^.]+$/,""));
       syncPresetToSize();
       history.length=0; state.histPtr=-1; snapshot();
       buildLayers(); fitZoom(); render();

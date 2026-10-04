@@ -300,10 +300,10 @@ export function drawGrid(){
   drawLassoPath();
 }
 
-// repères manuels posés depuis les règles (traits cyan fins, sur les bords de cellules)
+// repères manuels posés depuis les règles (traits fins couleur d'accent bleu, sur les bords de cellules)
 function drawRulerGuides(){
   if(!state.rulersOn || !state.rulerGuides.length) return;
-  const z=state.zoom; octx.save(); octx.strokeStyle="rgba(0,229,255,.9)"; octx.lineWidth=1; octx.beginPath();
+  const z=state.zoom; octx.save(); octx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue("--accent-blue").trim()||"#3d6bff"; octx.lineWidth=1; octx.beginPath();
   for(const g of state.rulerGuides){
     if(g.axis==="x"){ octx.moveTo(g.pos*z+.5,0); octx.lineTo(g.pos*z+.5,overlay.height); }
     else { octx.moveTo(0,g.pos*z+.5); octx.lineTo(overlay.width,g.pos*z+.5); } }

@@ -37,8 +37,8 @@ function drawRuler(cv,horizontal){
     if(major){ if(horizontal) g.fillText(String(i),p+2,1); else { g.save(); g.translate(1,p+2); g.rotate(-Math.PI/2); g.translate(-g.measureText(String(i)).width-2,0); g.fillText(String(i),0,0); g.restore(); } }
   }
   g.stroke();
-  // repères posés : petit marqueur cyan sur la règle
-  g.fillStyle="#00E5FF";
+  // repères posés : petit marqueur (bleu d'accent) sur la règle
+  g.fillStyle=css("--accent-blue")||"#3d6bff";
   for(const gd of state.rulerGuides){
     if(horizontal && gd.axis==="x"){ const p=origin+gd.pos*z; g.fillRect(p-1,thick-6,3,6); }
     if(!horizontal && gd.axis==="y"){ const p=origin+gd.pos*z; g.fillRect(thick-6,p-1,6,3); }

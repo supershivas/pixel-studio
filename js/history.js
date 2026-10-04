@@ -59,6 +59,12 @@ export function snapshot(label){
   state.histPtr = history.length-1;
   for(const fn of snapshotListeners) fn();
 }
+// abandonne l'action en cours (trait commencé par erreur, p. ex. un deuxième doigt se pose) : retire le dernier
+// instantané et revient à l'état qu'il contient, sans laisser de trace dans l'historique
+export function abortStroke(){
+  if(state.histPtr<1 || history.length-1!==state.histPtr) return false;
+  const snap=history.pop(); state.histPtr=history.length-1; restore(snap); return true;
+}
 export function restore(snap){
   const resized = snap.W!==state.W || snap.H!==state.H;
   if(snap.W){ state.W=snap.W; state.H=snap.H; }

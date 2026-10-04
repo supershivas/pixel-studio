@@ -22,7 +22,7 @@
   - `files.js` — glisser-déposer et coller une image
   - `update.js` — détection de mise à jour et service worker
   - `sheet.js` — import d'une planche de sprites (découpe en frames)
-  - `touch.js` — tablettes : pas de menu de sélection du système
+  - `touch.js` — tablettes : gestes à plusieurs doigts, pas de menu de sélection du système
   - `dither.js` — matrices de Bayer partagées
   - `ui.js` — outils, palette, sélecteur de couleur, calques, modales
   - `frames.js` — frames de l'animation
@@ -49,6 +49,15 @@
 `Ctrl/⌘ + N` et `Ctrl/⌘ + W` sont réservés par certains navigateurs (nouvelle fenêtre,
 fermeture de l'onglet) : ils ne parviennent à l'application que lorsque le navigateur les
 laisse passer — toujours le cas en application installée (PWA).
+
+## Gestes tactiles (iPad)
+
+| Geste | Action |
+| --- | --- |
+| Deux doigts qui s'écartent / se rapprochent | Zoom (centré entre les doigts) ; les glisser déplace le dessin |
+| Tape à deux doigts | Annuler |
+| Tape à trois doigts | Rétablir |
+| Apple Pencil | Dessine ; les doigts sont ignorés tant que le stylet est posé (paume) |
 
 ## Développement local
 

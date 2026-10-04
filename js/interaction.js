@@ -1,15 +1,25 @@
 import { state, view, hint, stage } from "./state.js";
 import { inBounds, insideRect, render, clampSel, liftSelection, commitFloat, copySelection, cutSelection,
   deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx, layerAt, setLayerAt } from "./helpers.js";
-import { snapshot, undo, redo } from "./history.js";
+import { snapshot, undo, redo, abortStroke } from "./history.js";
+import { touchCount, penIsDown } from "./touch.js";
 import { stampPlace, stampGhost, stampSpacing } from "./stamps.js";
 import { stampPattern, patternFill, gradientPreview, gradientApply } from "./patterns.js";
 import { stamp, line, floodFill, selectSimilar, selectLasso, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
 import { setColor, swapColors, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, updateCropFields, prefs } from "./ui.js";
 
 // ---------- Pointer interaction ----------
+let downPtr=-1;     // position dans l'historique à l'appui : sert à abandonner un trait interrompu (geste à plusieurs doigts)
 let drawing=false, startX=0, startY=0, lastX=0, lastY=0, creating=false, moveOrig=null, moveStart=null;
 export function setHint(t){ hint.textContent = t||"—"; }
+// Un deuxième doigt se pose : le geste (zoom, annuler) prend le relais. Le trait déjà commencé par le premier
+// doigt est abandonné, comme dans Procreate, et ses éventuelles modifications annulées.
+export function cancelDrawing(){
+  if(pendingDown){ clearTimeout(pendingDown.timer); pendingDown=null; }
+  if(drawing && state.histPtr>downPtr) abortStroke();       // trait en cours : on le retire de l'historique
+  drawing=false; creating=false; state.previewCells=null; state.gradDrag=null; state.lasso=null; state.cropDrag=null; state.selDrag=null; state.txOp=null;
+  render();
+}
 export function cellFromEvent(e){ const r=view.getBoundingClientRect();
   return [Math.floor((e.clientX-r.left)/state.zoom), Math.floor((e.clientY-r.top)/state.zoom)]; }
 export function screenFromEvent(e){ const r=view.getBoundingClientRect();
@@ -41,8 +51,10 @@ function penStep(px,py,L){
   ppPath.push([px,py]); stamp(px,py,state.color,L);
 }
 
-view.addEventListener("pointerdown",e=>{
+function onViewDown(e){
   if(spaceHeld || e.button===1) return;   // laisser le pan (géré par la scène)
+  if(e.pointerType==="touch" && (touchCount()>1 || penIsDown())) return;   // geste à plusieurs doigts, ou paume pendant que le stylet dessine
+  downPtr=state.histPtr;
   e.preventDefault(); view.setPointerCapture(e.pointerId);
   const [x,y]=cellFromEvent(e); const [sx,sy]=screenFromEvent(e);
 
@@ -94,9 +106,19 @@ view.addEventListener("pointerdown",e=>{
   else if(state.tool==="text"){ const hitL=hitTextLayer(x,y);
     if(hitL){ state.active=state.layers.indexOf(hitL); buildLayers(); startEditTextLayer(hitL,e.clientX,e.clientY); }
     else openCanvasText(x,y,e.clientX,e.clientY); }
+}
+// Au toucher, on attend un instant avant de commencer un trait : un deuxième doigt (geste de zoom / annuler) ne doit
+// ni dessiner un point, ni effacer la pile « rétablir » en créant un état d'historique.
+let pendingDown=null;
+function flushDown(){ if(!pendingDown) return; clearTimeout(pendingDown.timer); const e=pendingDown.e; pendingDown=null; onViewDown(e); }
+view.addEventListener("pointerdown",e=>{
+  if(e.pointerType==="touch" && !spaceHeld && touchCount()<=1 && !penIsDown()){
+    e.preventDefault(); pendingDown={e,timer:setTimeout(flushDown,70)}; return; }
+  onViewDown(e);
 });
 
 view.addEventListener("pointermove",e=>{
+  if(pendingDown){ if(Math.hypot(e.clientX-pendingDown.e.clientX,e.clientY-pendingDown.e.clientY)>3) flushDown(); else return; }
   const [x,y]=cellFromEvent(e);
   // aperçu fantôme du texte
   if(state.tool==="text" && !drawing){ setHint(inBounds(x,y)?(x+" , "+y+"   ·   texte"):""); return; }
@@ -168,6 +190,7 @@ view.addEventListener("pointermove",e=>{
 });
 
 view.addEventListener("pointerup",e=>{
+  flushDown();
   if(!drawing) return;
   const [x,y]=cellFromEvent(e);
   if(state.tool==="gradient"){ drawing=false; gradientApply(); return; }

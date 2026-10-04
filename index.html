@@ -168,6 +168,27 @@
   button.primary{background:var(--accent);color:#1a1400;border-color:var(--accent);font-weight:700}
   button.primary:hover{filter:brightness(1.08);background:var(--accent)}
   button.ghost{background:transparent}
+  button.danger{background:var(--danger);color:#fff;border-color:var(--danger);font-weight:700}
+  button.danger:hover{filter:brightness(1.1);background:var(--danger)}
+  /* champs texte (les select / input number héritent de la règle globale ci-dessus) */
+  input.txt{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;
+    padding:6px 8px;font-family:var(--sans);font-size:13px;min-width:0}
+  input.txt::placeholder{color:var(--ink-dim)}
+  .fill{width:100%}
+  .grow{flex:1;min-width:0}
+  /* mises en page de formulaire récurrentes */
+  .pref.stack{display:block}
+  .pref.stack .lbl.stack-lbl,.stack-lbl{margin-bottom:8px}
+  .inline{display:flex;align-items:center;gap:8px}
+  .inline.sm{gap:6px}
+  .inline.wrap{flex-wrap:wrap}
+  .inline.gap-top{margin-top:8px}
+  .readout{font:12px var(--mono);color:var(--ink-dim);min-width:34px;text-align:center}
+  .modal.w380{width:min(380px,94vw)}
+  .modal.w400{width:min(400px,94vw)}
+  .modal.w420{width:min(420px,94vw)}
+  .modal.w460{width:min(460px,94vw)}
+  .modal.w520{width:min(520px,94vw)}
   button:disabled{opacity:.45;cursor:not-allowed}
   button:disabled:hover{border-color:var(--line);background:var(--panel-2);filter:none}
 
@@ -204,7 +225,7 @@
   .block h2{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);
     margin:0 0 10px;font-weight:700}
   .swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
-  .sw-clear{background:repeating-conic-gradient(#8893a8 0 25%,#d8deea 0 50%) 0 0/10px 10px}
+  .sw-clear{background:conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/10px 10px}
   .sw{aspect-ratio:1;border-radius:5px;border:2px solid transparent;cursor:pointer;position:relative}
   .sw:hover{transform:scale(1.06)}
   .sw.sel{border-color:var(--ink);box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
@@ -595,12 +616,12 @@
 </div>
 
 <div class="modal-backdrop" id="sizeModal">
-  <div class="modal" style="width:min(420px,92vw)" role="dialog" aria-label="Taille de l'image">
+  <div class="modal w420" role="dialog" aria-label="Taille de l'image">
     <header><h2>Taille de l'image</h2><button class="modal-x" id="sizeClose" title="Fermer" aria-label="Fermer">×</button></header>
     <div class="body">
       <div class="pref" style="display:block;border-bottom:none">
-        <div class="lbl" style="margin-bottom:8px">Format de carte</div>
-        <select id="preset" style="width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 8px;font-size:13px">
+        <div class="lbl stack-lbl">Format de carte</div>
+        <select class="fill" id="preset">
           <optgroup label="Illustration (carré)">
             <option value="96x96">96×96 · fin</option>
             <option value="64x64">64×64 · moyen</option>
@@ -619,14 +640,14 @@
           <option value="custom">Personnalisé…</option>
         </select>
         <div id="customWH" hidden style="margin-top:10px;display:flex;align-items:center;gap:6px">
-          <input type="number" id="cw" min="8" max="512" value="96" style="width:70px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)"> ×
-          <input type="number" id="ch" min="8" max="512" value="96" style="width:70px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)">
+          <input type="number" id="cw" min="8" max="512" value="96"> ×
+          <input type="number" id="ch" min="8" max="512" value="96">
           <button class="mini" id="applyWH">Appliquer</button>
         </div>
         <p class="note" style="margin-top:10px">Changer la taille recadre le contenu au coin supérieur gauche. Pour pivoter le canevas (paysage), utilise Image › Rotation.</p>
       </div>
     </div>
-    <div class="foot"><button class="menu-btn active" id="sizeOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Terminé</button></div>
+    <div class="foot"><button class="primary" id="sizeOk">Terminé</button></div>
   </div>
 </div>
 
@@ -650,7 +671,7 @@
       <div class="fx-panel">
         <div class="fx-pane" data-fx-pane="blend">
           <div class="pref"><div class="lbl">Mode de fusion<small>Vis-à-vis des calques inférieurs</small></div>
-            <select id="fxBlend" style="background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px">
+            <select id="fxBlend">
               <option value="normal">Normal</option>
               <option value="multiply">Produit</option>
               <option value="screen">Écran</option>
@@ -704,7 +725,7 @@
           <div class="pref"><div class="lbl">Activer<small>Nette, sans flou</small></div>
             <label class="switch"><input type="checkbox" id="fxShadowOn"><span class="sl"></span></label></div>
           <div class="pref"><div class="lbl">Décalage X / Y &amp; couleur</div>
-            <div style="display:flex;align-items:center;gap:6px">
+            <div class="inline sm">
               <input type="number" id="fxShadowDX" value="1" style="width:52px">
               <input type="number" id="fxShadowDY" value="1" style="width:52px">
               <button class="fxsw" id="fxShadowColor"></button></div></div>
@@ -714,7 +735,7 @@
     <div class="foot">
       <button class="mini" id="fxResetBtn">Réinitialiser les effets</button>
       <button class="mini" id="fxCancel">Annuler</button>
-      <button class="menu-btn active" id="fxOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Appliquer</button>
+      <button class="primary" id="fxOk">Appliquer</button>
     </div>
   </div>
 </div>
@@ -725,7 +746,7 @@
       <button class="modal-x" id="homeClose" title="Reprendre le projet en cours" aria-label="Fermer">×</button></header>
     <div class="body">
       <div class="home-actions">
-        <button class="mini" id="homeNew" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">+ Nouvelle image</button>
+        <button class="primary" id="homeNew">+ Nouvelle image</button>
         <button class="mini" id="homeNewFromImage">Depuis une photo…</button>
         <input type="file" id="homeNewFromImageFile" accept="image/*" hidden>
         <button class="mini" id="homeOpen">Ouvrir un fichier (.pixel)…</button>
@@ -738,24 +759,24 @@
 </div>
 
 <div class="modal-backdrop" id="pixelizeModal">
-  <div class="modal" style="width:min(400px,92vw)" role="dialog" aria-label="Pixelliser l'image">
+  <div class="modal w400" role="dialog" aria-label="Pixelliser l'image">
     <header><h2>Pixelliser l'image</h2><button class="modal-x" id="pixelizeClose" title="Fermer" aria-label="Fermer">×</button></header>
     <div class="body">
       <div class="pref"><div class="lbl">Taille de bloc<small>Plus grand = moins de détail, effet « gros pixels »</small></div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div class="inline">
           <input type="range" id="pxBlock" min="1" max="16" value="4">
-          <span id="pxBlockV" class="mini" style="opacity:.7;min-width:34px;text-align:center">4 px</span></div></div>
+          <span id="pxBlockV" class="readout">4 px</span></div></div>
       <div class="pref"><div class="lbl">Palette<small>Calculée à partir de l'image elle-même</small></div>
-        <select id="pxPalette" style="max-width:190px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px">
+        <select id="pxPalette">
           <option value="image">Couleurs de l'image</option>
           <option value="bw">Noir et blanc</option>
         </select></div>
       <div class="pref" id="pxColorsRow"><div class="lbl">Nombre de couleurs<small>Les plus représentatives de l'image</small></div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div class="inline">
           <input type="range" id="pxColors" min="2" max="32" value="8">
-          <span id="pxColorsV" class="mini" style="opacity:.7;min-width:26px;text-align:center">8</span></div></div>
+          <span id="pxColorsV" class="readout">8</span></div></div>
       <div class="pref"><div class="lbl">Tramage<small>Simule les teintes intermédiaires avec la palette</small></div>
-        <select id="pxDither" style="max-width:190px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px">
+        <select id="pxDither">
           <option value="none">Aucun</option>
           <option value="bayer4">Ordonné 4×4 (trame régulière)</option>
           <option value="bayer8">Ordonné 8×8 (trame fine)</option>
@@ -763,53 +784,53 @@
           <option value="atkinson">Atkinson (contrasté, style Mac)</option>
         </select></div>
       <div class="pref" id="pxStrengthRow" hidden><div class="lbl">Intensité du tramage</div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div class="inline">
           <input type="range" id="pxStrength" min="0" max="100" value="100">
-          <span id="pxStrengthV" class="mini" style="opacity:.7;min-width:40px;text-align:center">100 %</span></div></div>
+          <span id="pxStrengthV" class="readout">100 %</span></div></div>
       <div class="pref"><div class="lbl">Seuil de transparence<small>Zones trop transparentes de la source ignorées</small></div>
         <input type="range" id="pxAlpha" min="0" max="255" value="128"></div>
       <p class="note">Le résultat est ajouté en nouveau calque, le calque image d'origine n'est pas modifié. Déplace la fenêtre par son en-tête pour dégager l'aperçu.</p>
     </div>
     <div class="foot">
       <button class="mini" id="pixelizeCancel">Annuler</button>
-      <button class="menu-btn active" id="pixelizeOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Appliquer</button>
+      <button class="primary" id="pixelizeOk">Appliquer</button>
     </div>
   </div>
 </div>
 
 <div class="modal-backdrop" id="exportModal">
-  <div class="modal" style="width:min(520px,94vw)" role="dialog" aria-label="Exporter">
+  <div class="modal w520" role="dialog" aria-label="Exporter">
     <header><h2>Exporter</h2><button class="modal-x" id="exClose" title="Annuler" aria-label="Annuler">×</button></header>
     <div class="body">
-      <div class="pref" style="display:block;padding-top:4px">
-        <div class="lbl" style="margin-bottom:8px">Réglages enregistrés<small>Rappelle un ensemble de réglages (format, échelle, fond…) ou enregistre les actuels sous un nom</small></div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <select id="exPresetSel" style="background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px" style="flex:1;min-width:140px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px"></select>
+      <div class="pref stack">
+        <div class="lbl stack-lbl">Réglages enregistrés<small>Rappelle un ensemble de réglages (format, échelle, fond…) ou enregistre les actuels sous un nom</small></div>
+        <div class="inline sm wrap">
+          <select id="exPresetSel"></select>
           <button class="mini" id="exPresetDel" title="Supprimer ces réglages">Supprimer</button>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
-          <input type="text" id="exPresetName" maxlength="40" spellcheck="false" autocomplete="off" placeholder="Nom des réglages"
-            style="flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px">
+        <div class="inline sm gap-top">
+          <input class="txt grow" type="text" id="exPresetName" maxlength="40" spellcheck="false" autocomplete="off" placeholder="Nom des réglages"
+           >
           <button class="mini" id="exPresetSave">Enregistrer</button>
         </div>
       </div>
-      <div class="pref" style="display:block">
-        <div class="lbl" style="margin-bottom:8px">Format<small id="exFmtHint"></small></div>
+      <div class="pref stack">
+        <div class="lbl stack-lbl">Format<small id="exFmtHint"></small></div>
         <div class="scale-picker" id="exFormats"></div>
       </div>
-      <div class="pref" style="display:block">
-        <div class="lbl" style="margin-bottom:8px">Nom du fichier</div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <input type="text" id="exName" maxlength="60" spellcheck="false" autocomplete="off" style="background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 8px;font-size:13px" style="flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 8px;font-size:13px">
+      <div class="pref stack">
+        <div class="lbl stack-lbl">Nom du fichier</div>
+        <div class="inline sm">
+          <input type="text" id="exName" maxlength="60" spellcheck="false" autocomplete="off" class="txt grow">
           <span id="exExt" style="font:12px var(--mono);color:var(--ink-dim)">.png</span>
         </div>
       </div>
-      <div class="pref" id="exScaleRow" style="display:block">
-        <div class="lbl" style="margin-bottom:8px">Taille<small>Chaque pixel du dessin devient un carré de N×N pixels</small></div>
+      <div class="pref stack" id="exScaleRow">
+        <div class="lbl stack-lbl">Taille<small>Chaque pixel du dessin devient un carré de N×N pixels</small></div>
         <div class="scale-picker" id="exScalePicker"></div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:10px">
           <span style="font-size:12px;color:var(--ink-dim)">Personnalisée ×</span>
-          <input type="number" id="exScale" min="1" max="64" value="6" style="width:64px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)">
+          <input type="number" id="exScale" min="1" max="64" value="6">
         </div>
       </div>
       <div class="pref" id="exBgRow">
@@ -820,9 +841,9 @@
         </div>
       </div>
       <div class="pref" id="exQualityRow"><div class="lbl">Qualité JPG<small>Plus bas = fichier plus léger, artefacts visibles</small></div>
-        <div style="display:flex;align-items:center;gap:8px">
+        <div class="inline">
           <input type="range" id="exQuality" min="50" max="100" value="95">
-          <span id="exQualityV" class="mini" style="opacity:.7;min-width:44px;text-align:center">95 %</span></div></div>
+          <span id="exQualityV" class="readout">95 %</span></div></div>
       <div class="pref" id="exColsRow"><div class="lbl">Colonnes<small>0 = automatique (grille presque carrée)</small></div>
         <input type="number" id="exCols" min="0" max="64" value="0"></div>
       <div class="pref" style="border-bottom:none">
@@ -833,26 +854,26 @@
     </div>
     <div class="foot">
       <button class="mini" id="exCancel">Annuler</button>
-      <button class="menu-btn active" id="exOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Exporter</button>
+      <button class="primary" id="exOk">Exporter</button>
     </div>
   </div>
 </div>
 
 <div class="modal-backdrop" id="newModal">
-  <div class="modal" style="width:min(460px,92vw)" role="dialog" aria-label="Nouvelle image">
+  <div class="modal w460" role="dialog" aria-label="Nouvelle image">
     <header><h2>Nouvelle image</h2><button class="modal-x" id="newClose" title="Annuler" aria-label="Annuler">×</button></header>
     <div class="body">
-      <div class="pref" style="display:block;border-bottom:none;padding-bottom:4px">
-        <div class="lbl" style="margin-bottom:8px">Nom du projet</div>
-        <input type="text" id="newName" maxlength="60" spellcheck="false" autocomplete="off" placeholder="Sans titre"
-          style="width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 8px;font-size:13px">
+      <div class="pref stack">
+        <div class="lbl stack-lbl">Nom du projet</div>
+        <input class="txt fill" type="text" id="newName" maxlength="60" spellcheck="false" autocomplete="off" placeholder="Sans titre"
+         >
       </div>
-      <div class="pref" style="display:block;border-bottom:none;padding-top:10px">
-        <div class="lbl" style="margin-bottom:8px">Format</div>
-        <select id="newPreset" style="width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 8px;font-size:13px"></select>
+      <div class="pref stack">
+        <div class="lbl stack-lbl">Format</div>
+        <select class="fill" id="newPreset"></select>
         <div id="newCustomWH" hidden style="margin-top:10px;display:flex;align-items:center;gap:6px">
-          <input type="number" id="newW" min="8" max="512" value="96" style="width:70px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)"> ×
-          <input type="number" id="newH" min="8" max="512" value="96" style="width:70px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)">
+          <input type="number" id="newW" min="8" max="512" value="96"> ×
+          <input type="number" id="newH" min="8" max="512" value="96">
           <span style="font-size:12px;color:var(--ink-dim)">pixels</span>
         </div>
       </div>
@@ -867,13 +888,13 @@
     </div>
     <div class="foot">
       <button class="mini" id="newCancel">Annuler</button>
-      <button class="menu-btn active" id="newOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Créer</button>
+      <button class="primary" id="newOk">Créer</button>
     </div>
   </div>
 </div>
 
 <div class="modal-backdrop" id="saveAskModal">
-  <div class="modal" style="width:min(420px,92vw)" role="dialog" aria-label="Enregistrer le projet">
+  <div class="modal w420" role="dialog" aria-label="Enregistrer le projet">
     <header><h2 id="saveAskTitle">Fermer le projet</h2><button class="modal-x" id="saveAskClose" title="Annuler" aria-label="Annuler">×</button></header>
     <div class="body">
       <p id="saveAskMsg" style="font-size:14px;color:var(--ink);margin:0;line-height:1.5">Enregistrer le projet avant de le fermer ?</p>
@@ -882,13 +903,13 @@
     <div class="foot">
       <button class="mini" id="saveAskCancel">Annuler</button>
       <button class="mini" id="saveAskSkip">Ne pas enregistrer</button>
-      <button class="menu-btn active" id="saveAskSave" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Enregistrer</button>
+      <button class="primary" id="saveAskSave">Enregistrer</button>
     </div>
   </div>
 </div>
 
 <div class="modal-backdrop" id="confirmModal">
-  <div class="modal" style="width:min(380px,92vw)" role="dialog" aria-label="Confirmation">
+  <div class="modal w380" role="dialog" aria-label="Confirmation">
     <header><h2 id="confirmTitle">Supprimer</h2><button class="modal-x" id="confirmClose" title="Fermer" aria-label="Fermer">×</button></header>
     <div class="body">
       <p id="confirmMsg" style="font-size:14px;color:var(--ink);margin:0 0 14px;line-height:1.5">Supprimer ce calque ?</p>
@@ -896,7 +917,7 @@
     </div>
     <div class="foot">
       <button class="mini" id="confirmCancel">Annuler</button>
-      <button class="menu-btn active" id="confirmOk" style="border:1px solid var(--danger);background:var(--danger);color:#fff;font-weight:700">Supprimer</button>
+      <button class="danger" id="confirmOk">Supprimer</button>
     </div>
   </div>
 </div>
@@ -928,7 +949,7 @@
       <div class="pref"><div class="lbl">Version</div>
         <span id="prefVersion" class="mini" style="opacity:.7"></span></div>
     </div>
-    <div class="foot"><button class="mini" id="prefsReset">Réinitialiser</button><button class="menu-btn active" id="prefsOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Terminé</button></div>
+    <div class="foot"><button class="mini" id="prefsReset">Réinitialiser</button><button class="primary" id="prefsOk">Terminé</button></div>
   </div>
 </div>
 

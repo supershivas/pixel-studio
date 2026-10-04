@@ -8,6 +8,7 @@ import { restoreAutosaveIfAny, scheduleAutosave } from "./io.js";
 import { initFrames } from "./frames.js";
 import "./home.js";
 import "./modals.js";
+import "./update.js";
 
 // ---------- Init ----------
 loadPrefs();

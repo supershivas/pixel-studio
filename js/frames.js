@@ -99,9 +99,7 @@ function startPlayback(){
 function togglePlay(){ state.playing ? stopPlayback() : startPlayback(); }
 
 // ---------- Interface : bandeau de frames ----------
-let dragFrameId=null;
 function clearFrameDropMarks(){ framesEl?.querySelectorAll(".frame").forEach(el=>el.classList.remove("drop-before","drop-after")); }
-function frameZone(e,el){ const r=el.getBoundingClientRect(); return (e.clientX-r.left)/r.width<0.5 ? "before" : "after"; }
 // toId=null => déposer en toute fin du bandeau
 function moveFrame(fromId,toId,zone){
   const from=state.frames.findIndex(x=>x.id===fromId); if(from<0) return;
@@ -116,7 +114,7 @@ function moveFrame(fromId,toId,zone){
 function frameThumb(f,i){
   const el=document.createElement("div");
   el.className="frame"+(i===state.activeFrame?" active":"");
-  el.draggable=true; el.dataset.id=f.id; el.title="Frame "+(i+1);
+  el.dataset.id=f.id; el.title="Frame "+(i+1)+" — glisse pour réordonner";
   const cv=document.createElement("canvas"); cv.width=state.W; cv.height=state.H; cv.className="fthumb";
   const ctx=cv.getContext("2d");
   const src=(i===state.activeFrame)?state.layers:f.layers;
@@ -128,15 +126,8 @@ function frameThumb(f,i){
   del.addEventListener("click",e=>{ e.stopPropagation(); deleteFrame(i); });
   if(f.delay){ const dl=document.createElement("span"); dl.className="fdelay"; dl.textContent=f.delay+" ms"; el.appendChild(dl); }
   el.append(cv,num,dup,del);
-  el.addEventListener("click",()=>switchFrame(i));
-  el.addEventListener("dragstart",e=>{ dragFrameId=f.id; e.dataTransfer.effectAllowed="move"; el.classList.add("dragging"); });
-  el.addEventListener("dragend",()=>{ dragFrameId=null; el.classList.remove("dragging"); clearFrameDropMarks(); });
-  el.addEventListener("dragover",e=>{ if(dragFrameId==null||dragFrameId===f.id) return; e.preventDefault();
-    const zone=frameZone(e,el); clearFrameDropMarks(); el.classList.add(zone==="before"?"drop-before":"drop-after"); });
-  el.addEventListener("dragleave",()=>el.classList.remove("drop-before","drop-after"));
-  el.addEventListener("drop",e=>{ e.preventDefault(); clearFrameDropMarks();
-    if(dragFrameId==null||dragFrameId===f.id) return;
-    moveFrame(dragFrameId,f.id,frameZone(e,el)); dragFrameId=null; });
+  el.addEventListener("click",()=>{ if(!suppressClick) switchFrame(i); });
+  el.addEventListener("pointerdown",e=>startFramePress(e,el,f));
   return el;
 }
 export function buildFrames(){
@@ -146,11 +137,62 @@ export function buildFrames(){
   if(frameCountEl) frameCountEl.textContent=state.frames.length+" frame"+(state.frames.length>1?"s":"");
   syncDelayInput();
 }
-// dépose dans l'espace vide après la dernière frame => déplacer en toute fin
-if(framesEl){
-  framesEl.addEventListener("dragover",e=>{ if(dragFrameId==null) return; e.preventDefault(); });
-  framesEl.addEventListener("drop",e=>{ if(dragFrameId==null||e.target!==framesEl) return; e.preventDefault();
-    clearFrameDropMarks(); moveFrame(dragFrameId,null,null); dragFrameId=null; });
+// ---------- Réordonner les frames au pointeur (souris, stylet ou doigt) ----------
+// Remplace le glisser-déposer HTML5, inopérant au toucher. Souris / stylet : on glisse après quelques
+// pixels. Doigt : appui long (≈0,3 s) puis glisser, pour ne pas confondre avec un simple toucher.
+let press=null, ghost=null, suppressClick=false;
+function dropTarget(x,y){          // {id, zone} : frame la plus proche en abscisse, si le pointeur reste près du bandeau
+  const r=framesEl.getBoundingClientRect();
+  if(y<r.top-40||y>r.bottom+40||x<r.left-40||x>r.right+40) return null;
+  let best=null,bd=1e9;
+  framesEl.querySelectorAll(".frame").forEach(el=>{ const b=el.getBoundingClientRect(), d=Math.abs((b.left+b.right)/2-x);
+    if(d<bd){ bd=d; best={el,id:+el.dataset.id,zone:x<(b.left+b.right)/2?"before":"after"}; } });
+  return best;
+}
+function placeGhost(e){ if(ghost){ ghost.style.left=e.clientX+"px"; ghost.style.top=e.clientY+"px"; } }
+function beginFrameDrag(e){
+  press.dragging=true; press.el.classList.add("dragging");
+  ghost=press.el.cloneNode(true); ghost.classList.add("frame-ghost");
+  const c0=press.el.querySelector("canvas"), c1=ghost.querySelector("canvas"); if(c0&&c1) c1.getContext("2d").drawImage(c0,0,0);
+  document.body.appendChild(ghost); placeGhost(e);
+}
+function endFramePress(){
+  if(!press) return;
+  clearTimeout(press.timer);
+  window.removeEventListener("pointermove",onFrameMove); window.removeEventListener("pointerup",onFrameUp); window.removeEventListener("pointercancel",onFrameUp);
+  if(ghost){ ghost.remove(); ghost=null; }
+  press.el.classList.remove("dragging"); clearFrameDropMarks(); press=null;
+}
+function onFrameMove(e){
+  if(!press||e.pointerId!==press.pid) return;
+  press.last=e;
+  if(!press.dragging){
+    if(Math.hypot(e.clientX-press.x,e.clientY-press.y)<=(press.touch?10:5)) return;
+    if(press.touch){ endFramePress(); return; }          // le doigt bouge avant l'appui long : simple défilement
+    beginFrameDrag(e);
+  }
+  placeGhost(e); clearFrameDropMarks();
+  const t=dropTarget(e.clientX,e.clientY);
+  if(t && t.id!==press.id) t.el.classList.add(t.zone==="before"?"drop-before":"drop-after");
+}
+function onFrameUp(e){
+  if(!press||e.pointerId!==press.pid) return;
+  if(press.dragging && e.type==="pointerup"){
+    const t=dropTarget(e.clientX,e.clientY), id=press.id;
+    suppressClick=true; setTimeout(()=>suppressClick=false,0);
+    endFramePress();
+    if(t && t.id!==id) moveFrame(id,t.id,t.zone);
+    return;
+  }
+  if(press.dragging){ suppressClick=true; setTimeout(()=>suppressClick=false,0); }
+  endFramePress();
+}
+function startFramePress(e,el,f){
+  if(e.button!==0 || e.target.closest("button")) return;
+  endFramePress();
+  press={ id:f.id, el, x:e.clientX, y:e.clientY, pid:e.pointerId, touch:e.pointerType==="touch", dragging:false, last:e };
+  if(press.touch) press.timer=setTimeout(()=>{ if(press && !press.dragging){ beginFrameDrag(press.last); if(navigator.vibrate) navigator.vibrate(8); } },300);
+  window.addEventListener("pointermove",onFrameMove); window.addEventListener("pointerup",onFrameUp); window.addEventListener("pointercancel",onFrameUp);
 }
 
 // durée par frame : champ « Durée » de la barre d'animation (vide = automatique, selon les IPS)

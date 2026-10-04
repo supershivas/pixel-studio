@@ -64,7 +64,8 @@ export function deleteFrame(i){
 // ---------- Transformer toutes les frames (taille / rotation du canevas) ----------
 export function transformAllFrames(applyFn){
   syncCurrentFrame();
-  state.frames.forEach(f=>applyFn(f.layers));   // applyFn mute les calques en place
+  state.frames.forEach((f,i)=>{ if(i!==state.activeFrame) f.layers=cloneLayers(f.layers);   // l'historique garde les anciens calques
+    applyFn(f.layers); });                                                                    // applyFn mute les calques en place
   state.layers=cloneLayers(state.frames[state.activeFrame].layers);
 }
 

@@ -1,4 +1,4 @@
-import { state, PALETTE, octx } from "./state.js";
+import { state, octx } from "./state.js";
 import { idx, inBounds, layerAt, setLayerAt, newLayer, hexToRgb, render, commitFloat, bakeOffset } from "./helpers.js";
 import { snapshot } from "./history.js";
 import { setHint } from "./interaction.js";
@@ -384,40 +384,114 @@ export function enterLayerTransform(){
 }
 document.getElementById("transformLayer").onclick=enterLayerTransform;
 
-// ---------- Pixelliser sur la palette (bloc de détail réglable + tramage) ----------
+// ---------- Pixelliser l'image (palette tirée de l'image ou noir & blanc, tramage au choix) ----------
 // Le résultat est calculé et inséré comme calque d'aperçu dès l'ouverture de la modale, puis
 // recalculé à chaque changement de réglage ; il n'est versé dans l'historique qu'à la validation.
+// Étapes : rendu de l'image sur le canevas → moyenne par blocs → palette (médiane coupée sur les
+// couleurs de l'image, ou noir & blanc) → association des blocs à la palette, avec tramage.
 const BAYER4=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+const BAYER8=(()=>{ const m=[[0,2],[3,1]]; let n=2, cur=m;
+  while(n<8){ const nn=n*2, nx=[]; for(let y=0;y<nn;y++){ nx.push([]); for(let x=0;x<nn;x++){
+      nx[y].push(4*cur[y%n][x%n]+m[(y/n)|0][(x/n)|0]); } } cur=nx; n=nn; }
+  return cur; })();
+// diffusion d'erreur : [dx, dy, poids], diviseur
+const DIFFUSION={
+  floyd:  { div:16, k:[[1,0,7],[-1,1,3],[0,1,5],[1,1,1]] },
+  atkinson:{ div:8,  k:[[1,0,1],[2,0,1],[-1,1,1],[0,1,1],[1,1,1],[0,2,1]] },
+};
 const pixelizeModal=document.getElementById("pixelizeModal");
 let pixelizeTarget=null, pixelizePreview=null, pixelizePrevActive=0, pixelizeRaf=0;
+let pixelizeCache=null;       // {px: pixels de l'image rendue, cells: {key,...}, pal: {key,...}}
 
 function pixelizeParams(){
   return { block:Math.max(1,+document.getElementById("pxBlock").value||1),
            alphaThresh:+document.getElementById("pxAlpha").value||0,
-           dither:document.getElementById("pxDither").checked };
+           mode:document.getElementById("pxPalette").value,                 // "image" | "bw"
+           colors:Math.max(2,Math.min(32,+document.getElementById("pxColors").value||8)),
+           dither:document.getElementById("pxDither").value,                // none | bayer4 | bayer8 | floyd | atkinson
+           strength:(+document.getElementById("pxStrength").value||0)/100 };
 }
-function pixelizeData(L,{block,alphaThresh,dither}){
-  const off=document.createElement("canvas"); off.width=state.W; off.height=state.H; const octx2=off.getContext("2d");
-  octx2.imageSmoothingEnabled=true;
+function renderPixelizeSource(L){
+  const off=document.createElement("canvas"); off.width=state.W; off.height=state.H; const g=off.getContext("2d");
+  g.imageSmoothingEnabled=true;
   const im=L._imgEl, s=Math.min(state.W/im.naturalWidth,state.H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
-  octx2.drawImage(im,(state.W-w)/2+(L.ox||0),(state.H-h)/2+(L.oy||0),w,h);
-  const px=octx2.getImageData(0,0,state.W,state.H).data;
-  const palHex=PALETTE.concat(state.customColors), pal=palHex.map(hexToRgb);
-  const nearest=(r,g,b)=>{ let best=0,bd=1e9;
-    for(let p=0;p<pal.length;p++){ const dr=r-pal[p][0],dg=g-pal[p][1],db=b-pal[p][2], dd=dr*dr+dg*dg+db*db; if(dd<bd){bd=dd;best=p;} }
-    return palHex[best].toUpperCase(); };
-  const nd=new Array(state.W*state.H).fill(null);
-  for(let by=0;by<state.H;by+=block) for(let bx=0;bx<state.W;bx+=block){
-    const ey=Math.min(state.H,by+block), ex=Math.min(state.W,bx+block);
+  g.drawImage(im,(state.W-w)/2+(L.ox||0),(state.H-h)/2+(L.oy||0),w,h);
+  return g.getImageData(0,0,state.W,state.H).data;
+}
+// moyenne par bloc, pondérée par l'opacité ; les blocs trop transparents sont ignorés (a=0)
+function pixelizeCells(px,block,alphaThresh){
+  const gw=Math.ceil(state.W/block), gh=Math.ceil(state.H/block);
+  const rgb=new Float32Array(gw*gh*3), ok=new Uint8Array(gw*gh);
+  for(let cy=0;cy<gh;cy++) for(let cx=0;cx<gw;cx++){
+    const ey=Math.min(state.H,(cy+1)*block), ex=Math.min(state.W,(cx+1)*block);
     let sr=0,sg=0,sb=0,sa=0,n=0;
-    for(let y=by;y<ey;y++) for(let x=bx;x<ex;x++){ const i=(y*state.W+x)*4; sr+=px[i]; sg+=px[i+1]; sb+=px[i+2]; sa+=px[i+3]; n++; }
-    if(sa/n<alphaThresh) continue;
-    let r=sr/n, g=sg/n, b=sb/n;
-    if(dither){ const d=(BAYER4[(by/block|0)%4][(bx/block|0)%4]/16-0.5)*24; r+=d; g+=d; b+=d; }
-    const hex=nearest(Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b)));
-    for(let y=by;y<ey;y++) for(let x=bx;x<ex;x++) nd[y*state.W+x]=hex;
+    for(let y=cy*block;y<ey;y++) for(let x=cx*block;x<ex;x++){ const i=(y*state.W+x)*4, a=px[i+3];
+      sr+=px[i]*a; sg+=px[i+1]*a; sb+=px[i+2]*a; sa+=a; n++; }
+    if(!sa || sa/n<alphaThresh) continue;
+    const c=cy*gw+cx; ok[c]=1; rgb[c*3]=sr/sa; rgb[c*3+1]=sg/sa; rgb[c*3+2]=sb/sa;
   }
-  return { data:nd, colors:pal.length };
+  return {gw,gh,rgb,ok};
+}
+// médiane coupée : N couleurs représentatives des blocs opaques de l'image
+function medianCutPalette(cells,n){
+  const pts=[]; for(let c=0;c<cells.ok.length;c++) if(cells.ok[c]) pts.push(c);
+  if(!pts.length) return [[0,0,0]];
+  const rgb=cells.rgb;
+  const range=idxs=>{ let mn=[255,255,255], mx=[0,0,0];
+    for(const c of idxs) for(let k=0;k<3;k++){ const v=rgb[c*3+k]; if(v<mn[k])mn[k]=v; if(v>mx[k])mx[k]=v; }
+    let best=0,bs=-1; for(let k=0;k<3;k++){ const r=mx[k]-mn[k]; if(r>bs){bs=r;best=k;} }
+    return {ch:best, span:bs}; };
+  let boxes=[{idxs:pts, ...range(pts)}];
+  while(boxes.length<n){
+    let bi=-1,bsc=0; boxes.forEach((b,i)=>{ const sc=b.span*Math.sqrt(b.idxs.length); if(b.idxs.length>1 && b.span>0 && sc>bsc){bsc=sc;bi=i;} });
+    if(bi<0) break;                                  // plus rien à séparer : moins de couleurs que demandé
+    const b=boxes[bi], ch=b.ch;
+    b.idxs.sort((p,q)=>rgb[p*3+ch]-rgb[q*3+ch]);
+    const mid=b.idxs.length>>1, A=b.idxs.slice(0,mid), B=b.idxs.slice(mid);
+    boxes.splice(bi,1,{idxs:A,...range(A)},{idxs:B,...range(B)});
+  }
+  return boxes.map(b=>{ let r=0,g=0,bl=0; for(const c of b.idxs){ r+=rgb[c*3]; g+=rgb[c*3+1]; bl+=rgb[c*3+2]; }
+    const m=b.idxs.length; return [Math.round(r/m),Math.round(g/m),Math.round(bl/m)]; });
+}
+const toHex=([r,g,b])=>"#"+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("").toUpperCase();
+function pixelizeData(L,p){
+  if(!pixelizeCache || pixelizeCache.layer!==L) pixelizeCache={layer:L, px:renderPixelizeSource(L), cells:null, pal:null};
+  const C=pixelizeCache;
+  const ckey=p.block+"|"+p.alphaThresh;
+  if(!C.cells || C.cells.key!==ckey){ C.cells={key:ckey, ...pixelizeCells(C.px,p.block,p.alphaThresh)}; C.pal=null; }
+  const {gw,gh,ok}=C.cells; let rgb=C.cells.rgb;
+  const bw=p.mode==="bw";
+  if(bw){ rgb=Float32Array.from(rgb); for(let c=0;c<ok.length;c++) if(ok[c]){   // niveaux de gris (luminance)
+      const l=0.299*rgb[c*3]+0.587*rgb[c*3+1]+0.114*rgb[c*3+2]; rgb[c*3]=rgb[c*3+1]=rgb[c*3+2]=l; } }
+  const pkey=bw?"bw":("img|"+p.colors);
+  if(!C.pal || C.pal.key!==pkey) C.pal={key:pkey, list: bw ? [[0,0,0],[255,255,255]] : medianCutPalette(C.cells,p.colors)};
+  const pal=C.pal.list, np=pal.length;
+  const nearest=(r,g,b)=>{ let best=0,bd=1e12;
+    for(let q=0;q<np;q++){ const dr=r-pal[q][0],dg=g-pal[q][1],db=b-pal[q][2], dd=dr*dr+dg*dg+db*db; if(dd<bd){bd=dd;best=q;} }
+    return best; };
+  const out=new Int16Array(gw*gh).fill(-1);
+  const spread = bw ? 255 : 255/Math.max(1,Math.cbrt(np));      // amplitude du seuil du tramage ordonné
+  if(p.dither==="floyd" || p.dither==="atkinson"){
+    const D=DIFFUSION[p.dither], w=new Float32Array(rgb);       // copie de travail qui reçoit l'erreur
+    for(let cy=0;cy<gh;cy++) for(let cx=0;cx<gw;cx++){ const c=cy*gw+cx; if(!ok[c]) continue;
+      const r=w[c*3],g=w[c*3+1],b=w[c*3+2], q=nearest(Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b)));
+      out[c]=q;
+      const er=(r-pal[q][0])*p.strength, eg=(g-pal[q][1])*p.strength, eb=(b-pal[q][2])*p.strength;
+      for(const [dx,dy,wt] of D.k){ const nx=cx+dx, ny=cy+dy; if(nx<0||nx>=gw||ny>=gh) continue; const t=ny*gw+nx; if(!ok[t]) continue;
+        const f=wt/D.div; w[t*3]+=er*f; w[t*3+1]+=eg*f; w[t*3+2]+=eb*f; }
+    }
+  } else {
+    const M = p.dither==="bayer8" ? BAYER8 : p.dither==="bayer4" ? BAYER4 : null, n=M?M.length:0;
+    for(let cy=0;cy<gh;cy++) for(let cx=0;cx<gw;cx++){ const c=cy*gw+cx; if(!ok[c]) continue;
+      let r=rgb[c*3],g=rgb[c*3+1],b=rgb[c*3+2];
+      if(M){ const d=((M[cy%n][cx%n]+0.5)/(n*n)-0.5)*spread*p.strength; r+=d; g+=d; b+=d; }
+      out[c]=nearest(Math.max(0,Math.min(255,r)),Math.max(0,Math.min(255,g)),Math.max(0,Math.min(255,b)));
+    }
+  }
+  const hexes=pal.map(toHex), nd=new Array(state.W*state.H).fill(null), block=p.block;
+  for(let y=0;y<state.H;y++){ const row=((y/block)|0)*gw;
+    for(let x=0;x<state.W;x++){ const q=out[row+((x/block)|0)]; if(q>=0) nd[y*state.W+x]=hexes[q]; } }
+  return { data:nd, colors:np };
 }
 // recalcul groupé sur une frame : le curseur reste fluide même sur un grand canevas
 function refreshPixelizePreview(){
@@ -439,14 +513,14 @@ function removePixelizePreview(){
 function closePixelize(){
   if(pixelizeRaf){ cancelAnimationFrame(pixelizeRaf); pixelizeRaf=0; }
   removePixelizePreview();
-  pixelizeTarget=null;
+  pixelizeTarget=null; pixelizeCache=null;
   pixelizeModal.classList.remove("open");
   state.thumbsDirty=true; buildLayers(); render();
 }
 function openPixelizeModal(){
   const L=state.layers[state.active];
   if(!L.img || !L._imgEl || !L._imgEl.complete || !L._imgEl.naturalWidth){ showToast("Sélectionne un calque image à pixelliser.",{type:"warn"}); return; }
-  pixelizeTarget=L; pixelizePrevActive=state.active;
+  pixelizeTarget=L; pixelizePrevActive=state.active; pixelizeCache=null; syncPixelizeControls();
   pixelizePreview=newLayer("Pixellisé");
   pixelizePreview.groupId=L.groupId||null;
   state.layers.splice(state.active+1,0,pixelizePreview); state.active++;
@@ -463,8 +537,15 @@ window.addEventListener("keydown",e=>{
   if(e.key==="Escape" && pixelizeModal.classList.contains("open")){ e.stopPropagation(); closePixelize(); }
 },true);
 document.getElementById("pxBlock").oninput=e=>{ document.getElementById("pxBlockV").textContent=e.target.value+" px"; refreshPixelizePreview(); };
-document.getElementById("pxAlpha").oninput=refreshPixelizePreview;
-document.getElementById("pxDither").onchange=refreshPixelizePreview;
+function syncPixelizeControls(){
+  const p=pixelizeParams();
+  document.getElementById("pxColorsRow").hidden=p.mode!=="image";
+  document.getElementById("pxStrengthRow").hidden=p.dither==="none";
+  document.getElementById("pxColorsV").textContent=p.colors;
+  document.getElementById("pxStrengthV").textContent=Math.round(p.strength*100)+" %";
+}
+["pxAlpha","pxColors","pxStrength"].forEach(id=>document.getElementById(id).oninput=()=>{ syncPixelizeControls(); refreshPixelizePreview(); });
+["pxPalette","pxDither"].forEach(id=>document.getElementById(id).onchange=()=>{ syncPixelizeControls(); refreshPixelizePreview(); });
 document.getElementById("pixelizeOk").onclick=()=>{
   if(!pixelizeTarget || !pixelizePreview){ closePixelize(); return; }
   if(pixelizeRaf){ cancelAnimationFrame(pixelizeRaf); pixelizeRaf=0; }
@@ -479,7 +560,8 @@ document.getElementById("pixelizeOk").onclick=()=>{
   pixelizePreview=null; pixelizeTarget=null;
   pixelizeModal.classList.remove("open");
   state.thumbsDirty=true; buildLayers(); render();
-  showToast("Image pixellisée sur la palette ("+res.colors+" couleurs, bloc "+p.block+" px"+(p.dither?", tramage":"")+").",{type:"success"});
+  pixelizeCache=null;
+  showToast("Image pixellisée ("+(p.mode==="bw"?"noir et blanc":res.colors+" couleurs")+", bloc "+p.block+" px"+(p.dither!=="none"?", tramage":"")+").",{type:"success"});
 };
 
 // handles (coordonnées écran = grille × zoom)

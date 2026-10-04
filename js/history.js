@@ -13,11 +13,25 @@ export function onSnapshot(fn){ snapshotListeners.push(fn); }
 
 const cloneLayer = L => ({...L, data:L.data?L.data.slice():null,
   fx:L.fx?JSON.parse(JSON.stringify(L.fx)):null, text:L.text?{...L.text}:null});
-function liveSnap(){ return { active: state.active, layers: state.layers.map(cloneLayer) }; }
+// Un instantané porte aussi les dimensions du canevas (W×H) et les calques des autres frames
+// (par référence, sans copie : transformAllFrames les remplace avant de les modifier). C'est ce
+// qui permet d'annuler / rétablir un rognage, y compris sur une animation.
+function liveSnap(){
+  const snap={ active: state.active, W: state.W, H: state.H, guides: state.guides, layers: state.layers.map(cloneLayer) };
+  if(state.frames && state.frames.length){
+    snap.activeFrame=state.activeFrame;
+    snap.frames=state.frames.map((f,i)=>({ id:f.id, name:f.name, active:f.active, layers:i===state.activeFrame?null:f.layers }));
+  }
+  return snap;
+}
+// appelé après qu'une restauration a changé la taille du canevas (zoom, champs de taille…)
+const sizeListeners = [];
+export function onSizeRestore(fn){ sizeListeners.push(fn); }
 
 // comparaison sans allocation : sert à savoir si une action est en attente d'être empilée
 function sameAsLive(snap){
   if(!snap || snap.active!==state.active || snap.layers.length!==state.layers.length) return false;
+  if(snap.W!==state.W || snap.H!==state.H) return false;
   for(let i=0;i<snap.layers.length;i++){
     const a=snap.layers[i], b=state.layers[i];
     if(a.id!==b.id || a.name!==b.name || a.visible!==b.visible || a.opacity!==b.opacity
@@ -41,8 +55,18 @@ export function snapshot(){
   for(const fn of snapshotListeners) fn();
 }
 export function restore(snap){
+  const resized = snap.W!==state.W || snap.H!==state.H;
+  if(snap.W){ state.W=snap.W; state.H=snap.H; }
+  if(snap.guides!==undefined) state.guides=snap.guides;
   state.active = Math.min(snap.active, snap.layers.length-1);
   state.layers = snap.layers.map(cloneLayer);
+  if(resized && snap.frames){      // changement de taille : toutes les frames reprennent leur ancienne taille
+    state.frames = snap.frames.map((f,i)=>({ id:f.id, name:f.name, active:f.active,
+      layers:i===snap.activeFrame ? state.layers.map(cloneLayer) : f.layers.map(cloneLayer) }));
+    state.activeFrame = snap.activeFrame;
+  }
+  state.cropRect=null; state.activeShape=null; state.previewCells=null;
+  if(resized) for(const fn of sizeListeners) fn();
   buildLayers(); render();
 }
 export function undo(){

@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.8.1";
+export const APP_VERSION = "1.9.0";
 
 // ---------- Palette : 16 teintes flashy, bleu + jaune UE inclus ----------
 export const PALETTE = [

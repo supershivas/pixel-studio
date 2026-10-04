@@ -136,6 +136,7 @@
   .switch input:checked + .sl:before{transform:translateX(18px);background:#1a1400}
   .modal .foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid var(--line)}
   body.no-kbd .tool .kbd{display:none}
+  .fx-nav-item[hidden]{display:none}
   .scale-picker{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .scale-picker .mini.active{background:var(--accent);color:#1a1400;border-color:var(--accent);font-weight:700}
   .exp-sum{font:12px var(--mono);color:var(--ink)}
@@ -392,39 +393,24 @@
         <input type="file" id="newFromImageFile" accept="image/*" hidden>
         <button class="menu-item" id="openProj" data-close>Ouvrir (.pixel)…</button>
         <button class="menu-item" id="saveProj" data-close>Enregistrer (.pixel)</button>
+        <button class="menu-item" id="miExport" data-close>Exporter…</button>
         <input type="file" id="fileInput" accept=".pixel,.eu-pix,application/json" hidden>
         <div class="menu-sep"></div>
         <button class="menu-item" id="miClose" data-close>Fermer le projet (Ctrl/⌘W)</button>
         <div class="menu-sep"></div>
         <button class="menu-item" id="miImportImg" data-close>Importer une image (calque)…</button>
         <input type="file" id="imgFile" accept="image/*" hidden>
-        <div class="menu-sep"></div>
-        <button class="menu-item" id="prefsBtn" data-close>Préférences</button>
-      </div>
-    </div>
-    <div class="menu-root">
-      <button class="menu-btn" data-menu="export">Exporter</button>
-      <div class="menu" id="menu-export">
-        <div class="menu-field"><span>Échelle d'export</span> ×<input type="number" id="expScale" min="1" max="30" value="15"></div>
-        <button class="menu-item" id="expSVG" data-close>SVG (impression)</button>
-        <button class="menu-item" id="expPNG" data-close>PNG…</button>
-        <button class="menu-item" id="expJPG" data-close>JPG (sRGB)</button>
-        <button class="menu-item" id="expAscii" data-close>ASCII art (.txt)</button>
-        <button class="menu-item" id="expGrid" data-close>Grille de couleurs (.txt)</button>
-        <button class="menu-item" id="expSpriteSheet" data-close>Planche de sprites (PNG, toutes les frames)</button>
-        <div class="menu-sep"></div>
+        <button class="menu-item" id="impPaletteBtn" data-close>Importer une palette…</button>
+        <input type="file" id="impPaletteFile" accept=".json,application/json" hidden>
+        <input type="number" id="expScale" value="15" hidden>
         <div hidden>
-          <div class="menu-label">Exporter un lot (.pixel → .zip)</div>
-          <button class="menu-item" id="miBatchSVG" data-close>Choisir des fichiers → SVG</button>
-          <button class="menu-item" id="miBatchPNG" data-close>Choisir des fichiers → PNG</button>
-          <button class="menu-item" id="miBatchJPG" data-close>Choisir des fichiers → JPG</button>
+          <button class="menu-item" id="miBatchSVG" data-close>Lot → SVG</button>
+          <button class="menu-item" id="miBatchPNG" data-close>Lot → PNG</button>
+          <button class="menu-item" id="miBatchJPG" data-close>Lot → JPG</button>
           <input type="file" id="batchFiles" accept=".pixel,.eu-pix,application/json" multiple hidden>
         </div>
         <div class="menu-sep"></div>
-        <div class="menu-label">Palette</div>
-        <button class="menu-item" id="expPalette" data-close>Exporter la palette…</button>
-        <button class="menu-item" id="impPaletteBtn" data-close>Importer une palette…</button>
-        <input type="file" id="impPaletteFile" accept=".json,application/json" hidden>
+        <button class="menu-item" id="prefsBtn" data-close>Préférences</button>
       </div>
     </div>
     <div class="menu-root">
@@ -494,7 +480,7 @@
         <button class="menu-item" id="fxGoStroke" data-close>Contour…</button>
         <button class="menu-item" id="fxGoShadow" data-close>Ombre portée…</button>
         <div class="menu-sep"></div>
-        <button class="menu-item" id="pixelizeLayer" data-close>Pixelliser l'image (sur la palette)…</button>
+        <button class="menu-item" id="pixelizeLayer" data-close>Pixelliser l'image…</button>
       </div>
     </div>
     <span id="busy" class="busy" hidden>Export en cours…</span>
@@ -657,6 +643,7 @@
         <button class="fx-nav-item" data-fx="mirror">Miroir</button>
         <button class="fx-nav-item" data-fx="stroke">Contour</button>
         <button class="fx-nav-item" data-fx="shadow">Ombre portée</button>
+        <button class="fx-nav-item" data-fx="pixelize" id="fxNavPixelize">Pixelliser</button>
       </nav>
       <div class="fx-panel">
         <div class="fx-pane" data-fx-pane="blend">
@@ -707,6 +694,10 @@
               <input type="range" id="fxStrokeW" min="1" max="8" value="1" style="width:90px;accent-color:var(--accent)">
               <button class="fxsw" id="fxStrokeColor"></button></div></div>
         </div>
+        <div class="fx-pane" data-fx-pane="pixelize">
+          <div class="pref"><div class="lbl">Pixelliser l'image<small>Palette tirée de l'image ou noir et blanc, avec tramage au choix. Le résultat devient un nouveau calque de pixels.</small></div>
+            <button class="mini" id="fxPixelize">Pixelliser…</button></div>
+        </div>
         <div class="fx-pane" data-fx-pane="shadow">
           <div class="pref"><div class="lbl">Activer<small>Nette, sans flou</small></div>
             <label class="switch"><input type="checkbox" id="fxShadowOn"><span class="sl"></span></label></div>
@@ -746,18 +737,37 @@
 </div>
 
 <div class="modal-backdrop" id="pixelizeModal">
-  <div class="modal" style="width:min(380px,92vw)" role="dialog" aria-label="Pixelliser sur la palette">
-    <header><h2>Pixelliser sur la palette</h2><button class="modal-x" id="pixelizeClose" title="Fermer" aria-label="Fermer">×</button></header>
+  <div class="modal" style="width:min(400px,92vw)" role="dialog" aria-label="Pixelliser l'image">
+    <header><h2>Pixelliser l'image</h2><button class="modal-x" id="pixelizeClose" title="Fermer" aria-label="Fermer">×</button></header>
     <div class="body">
-      <div class="pref"><div class="lbl">Taille de bloc<small>Plus grand = moins de détail, effet plus "gros pixels"</small></div>
+      <div class="pref"><div class="lbl">Taille de bloc<small>Plus grand = moins de détail, effet « gros pixels »</small></div>
         <div style="display:flex;align-items:center;gap:8px">
           <input type="range" id="pxBlock" min="1" max="16" value="4">
           <span id="pxBlockV" class="mini" style="opacity:.7;min-width:34px;text-align:center">4 px</span></div></div>
+      <div class="pref"><div class="lbl">Palette<small>Calculée à partir de l'image elle-même</small></div>
+        <select id="pxPalette" style="max-width:190px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px">
+          <option value="image">Couleurs de l'image</option>
+          <option value="bw">Noir et blanc</option>
+        </select></div>
+      <div class="pref" id="pxColorsRow"><div class="lbl">Nombre de couleurs<small>Les plus représentatives de l'image</small></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="range" id="pxColors" min="2" max="32" value="8">
+          <span id="pxColorsV" class="mini" style="opacity:.7;min-width:26px;text-align:center">8</span></div></div>
+      <div class="pref"><div class="lbl">Tramage<small>Simule les teintes intermédiaires avec la palette</small></div>
+        <select id="pxDither" style="max-width:190px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px">
+          <option value="none">Aucun</option>
+          <option value="bayer4">Ordonné 4×4 (trame régulière)</option>
+          <option value="bayer8">Ordonné 8×8 (trame fine)</option>
+          <option value="floyd">Floyd–Steinberg (diffusion d'erreur)</option>
+          <option value="atkinson">Atkinson (contrasté, style Mac)</option>
+        </select></div>
+      <div class="pref" id="pxStrengthRow" hidden><div class="lbl">Intensité du tramage</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="range" id="pxStrength" min="0" max="100" value="100">
+          <span id="pxStrengthV" class="mini" style="opacity:.7;min-width:40px;text-align:center">100 %</span></div></div>
       <div class="pref"><div class="lbl">Seuil de transparence<small>Zones trop transparentes de la source ignorées</small></div>
         <input type="range" id="pxAlpha" min="0" max="255" value="128"></div>
-      <div class="pref"><div class="lbl">Tramage (dithering)<small>Simule des teintes intermédiaires avec la palette</small></div>
-        <label class="switch"><input type="checkbox" id="pxDither"><span class="sl"></span></label></div>
-      <p class="note">Utilise la palette du fichier (couleurs de base + couleurs ajoutées). Le résultat est ajouté en nouveau calque, le calque image d'origine n'est pas modifié. Déplace la fenêtre par son en-tête pour dégager l'aperçu.</p>
+      <p class="note">Le résultat est ajouté en nouveau calque, le calque image d'origine n'est pas modifié. Déplace la fenêtre par son en-tête pour dégager l'aperçu.</p>
     </div>
     <div class="foot">
       <p class="fx-foot-note">Aperçu en direct sur le dessin — rien n'est appliqué tant que tu n'as pas validé.</p>
@@ -767,42 +777,63 @@
   </div>
 </div>
 
-<div class="modal-backdrop" id="pngModal">
-  <div class="modal" style="width:min(460px,92vw)" role="dialog" aria-label="Exporter en PNG">
-    <header><h2>Exporter en PNG</h2><button class="modal-x" id="pngClose" title="Annuler" aria-label="Annuler">×</button></header>
+<div class="modal-backdrop" id="exportModal">
+  <div class="modal" style="width:min(520px,94vw)" role="dialog" aria-label="Exporter">
+    <header><h2>Exporter</h2><button class="modal-x" id="exClose" title="Annuler" aria-label="Annuler">×</button></header>
     <div class="body">
-      <div class="pref" style="display:block;border-bottom:none;padding-bottom:4px">
+      <div class="pref" style="display:block;padding-top:4px">
+        <div class="lbl" style="margin-bottom:8px">Réglages enregistrés<small>Rappelle un ensemble de réglages (format, échelle, fond…) ou enregistre les actuels sous un nom</small></div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="exPresetSel" style="background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px" style="flex:1;min-width:140px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px"></select>
+          <button class="mini" id="exPresetDel" title="Supprimer ces réglages">Supprimer</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
+          <input type="text" id="exPresetName" maxlength="40" spellcheck="false" autocomplete="off" placeholder="Nom des réglages"
+            style="flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 8px;font-size:13px">
+          <button class="mini" id="exPresetSave">Enregistrer</button>
+        </div>
+      </div>
+      <div class="pref" style="display:block">
+        <div class="lbl" style="margin-bottom:8px">Format<small id="exFmtHint"></small></div>
+        <div class="scale-picker" id="exFormats"></div>
+      </div>
+      <div class="pref" style="display:block">
         <div class="lbl" style="margin-bottom:8px">Nom du fichier</div>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="text" id="pngName" maxlength="60" spellcheck="false" autocomplete="off"
-            style="flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 8px;font-size:13px">
-          <span style="font:12px var(--mono);color:var(--ink-dim)">.png</span>
+          <input type="text" id="exName" maxlength="60" spellcheck="false" autocomplete="off" style="background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 8px;font-size:13px" style="flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 8px;font-size:13px">
+          <span id="exExt" style="font:12px var(--mono);color:var(--ink-dim)">.png</span>
         </div>
       </div>
-      <div class="pref" style="display:block;border-bottom:none;padding-top:10px">
+      <div class="pref" id="exScaleRow" style="display:block">
         <div class="lbl" style="margin-bottom:8px">Taille<small>Chaque pixel du dessin devient un carré de N×N pixels</small></div>
-        <div class="scale-picker" id="pngScalePicker"></div>
+        <div class="scale-picker" id="exScalePicker"></div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:10px">
           <span style="font-size:12px;color:var(--ink-dim)">Personnalisée ×</span>
-          <input type="number" id="pngScale" min="1" max="64" value="15" style="width:64px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)">
+          <input type="number" id="exScale" min="1" max="64" value="6" style="width:64px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)">
         </div>
       </div>
-      <div class="pref">
+      <div class="pref" id="exBgRow">
         <div class="lbl">Couleur de fond<small>Sinon les zones vides restent transparentes</small></div>
         <div style="display:flex;align-items:center;gap:10px">
-          <label class="switch"><input type="checkbox" id="pngBgOn"><span class="sl"></span></label>
-          <button class="fxsw" id="pngBgColor" title="Choisir la couleur de fond" disabled></button>
+          <label class="switch"><input type="checkbox" id="exBgOn"><span class="sl"></span></label>
+          <button class="fxsw" id="exBgColor" title="Choisir la couleur de fond" disabled></button>
         </div>
       </div>
+      <div class="pref" id="exQualityRow"><div class="lbl">Qualité JPG<small>Plus bas = fichier plus léger, artefacts visibles</small></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="range" id="exQuality" min="50" max="100" value="95">
+          <span id="exQualityV" class="mini" style="opacity:.7;min-width:44px;text-align:center">95 %</span></div></div>
+      <div class="pref" id="exColsRow"><div class="lbl">Colonnes<small>0 = automatique (grille presque carrée)</small></div>
+        <input type="number" id="exCols" min="0" max="64" value="0"></div>
       <div class="pref" style="border-bottom:none">
-        <div class="lbl">Image finale</div>
-        <span class="exp-sum" id="pngSummary">—</span>
+        <div class="lbl">Résultat</div>
+        <span class="exp-sum" id="exSummary">—</span>
       </div>
-      <p class="note" id="pngWarn" hidden></p>
+      <p class="note" id="exWarn" hidden></p>
     </div>
     <div class="foot">
-      <button class="mini" id="pngCancel">Annuler</button>
-      <button class="menu-btn active" id="pngOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Exporter</button>
+      <button class="mini" id="exCancel">Annuler</button>
+      <button class="menu-btn active" id="exOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Exporter</button>
     </div>
   </div>
 </div>

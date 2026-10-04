@@ -1,9 +1,9 @@
 import { state } from "./state.js";
 import { newLayer, render } from "./helpers.js";
-import { snapshot, onSnapshot } from "./history.js";
+import { snapshot, onSnapshot, onSizeRestore } from "./history.js";
 import { FONTS, OS, updateTextGlyph } from "./drawing.js";
 import { fitZoom } from "./interaction.js";
-import { setColor, buildLayers, loadPrefs, applyPrefs, setProjectName } from "./ui.js";
+import { setColor, buildLayers, loadPrefs, applyPrefs, setProjectName, afterSizeRestore } from "./ui.js";
 import { restoreAutosaveIfAny, scheduleAutosave } from "./io.js";
 import { initFrames } from "./frames.js";
 import "./home.js";
@@ -21,7 +21,8 @@ snapshot();                    // état initial vierge : pas encore suivi par l'
 applyPrefs();
 fitZoom();
 restoreAutosaveIfAny();        // propose de restaurer un dessin précédent, s'il y en a un
-onSnapshot(scheduleAutosave);  // à partir de maintenant, chaque snapshot programme une sauvegarde
+onSnapshot(scheduleAutosave);
+onSizeRestore(afterSizeRestore);  // annuler / rétablir un rognage : zoom et champs de taille suivent  // à partir de maintenant, chaque snapshot programme une sauvegarde
 window.addEventListener("resize",()=>{ /* laisser le zoom manuel */ });
 
 // Polices pixel : prêtes dès chargement (data-URI => quasi instantané)

@@ -277,6 +277,8 @@ function fillFxControls(L){
 }
 export function openFxModal(L,pane){
   if(!L || L.isGroup) return;
+  if(pane==="pixelize" && !L.img) pane="blend";
+  document.getElementById("fxNavPixelize").hidden=!L.img;     // la pixellisation ne concerne que les images importées
   if(fxLayer && fxLayer!==L) fxCancel();     // changement de calque en cours de route : on n'accumule pas
   fxLayer=L; fxOrig=layerSnap(L); fxDirty=false;
   fillFxControls(L);
@@ -296,6 +298,8 @@ export function openLayerFx(pane,op){
   if(op==="invert") fxInvertLayer(L);
   else if(op==="snap") fxSnapToPalette(L);
 }
+// Pixelliser : a sa propre fenêtre (aperçu en calque), ouverte depuis la rubrique des effets
+document.getElementById("fxPixelize").onclick=()=>{ fxCancel(); document.getElementById("pixelizeLayer").click(); };
 function closeFxModal(){ fxModalEl.classList.remove("open"); fxLayer=null; fxOrig=null; fxDirty=false; }
 export function fxCancel(){
   if(fxLayer && fxOrig && fxDirty){ applyLayerSnap(fxLayer,fxOrig); state.thumbsDirty=true; buildLayers(); render(); }
@@ -755,31 +759,73 @@ function remapData(d,w,h){ const nd=new Array(w*h).fill(null);
   return nd; }
 
 // ---------- Recadrage (outil Recadrer) ----------
+// Un calque image est affiché « ajusté » au canevas (échelle = min(W/largeur, H/hauteur), centré,
+// décalé de ox/oy). Changer W×H change donc cette échelle et ce centrage : il ne suffit pas de
+// décaler ox/oy. On redécoupe l'image source pour que la version rognée, ajustée au nouveau
+// canevas, tombe exactement au même endroit et à la même échelle qu'avant.
+const MAX_CROP_IMG_SIDE=8192;
+function cropImageLayer(L,cx,cy,cw,ch,cache){
+  const src=L._imgEl; if(!src || !src.naturalWidth || !L.img) return;
+  const key=L.img.dataURL+"|"+(L.ox||0)+"|"+(L.oy||0);
+  let hit=cache.get(key);
+  if(!hit){
+    const nw=src.naturalWidth, nh=src.naturalHeight;
+    const s=Math.min(state.W/nw,state.H/nh), w=nw*s, h=nh*s;
+    const left=(state.W-w)/2+(L.ox||0), top=(state.H-h)/2+(L.oy||0);
+    let k=1/s;                                          // pixels source par pixel du canevas
+    k=Math.min(k, MAX_CROP_IMG_SIDE/Math.max(cw,ch));
+    const tw=Math.max(1,Math.round(cw*k)), th=Math.max(1,Math.round(ch*k));
+    const kx=tw/cw, ky=th/ch;
+    const c=document.createElement("canvas"); c.width=tw; c.height=th;
+    const g=c.getContext("2d"); g.imageSmoothingEnabled=false;
+    g.drawImage(src,(left-cx)*kx,(top-cy)*ky,w*kx,h*ky);
+    hit={url:c.toDataURL("image/png")}; cache.set(key,hit);
+  }
+  L.img={dataURL:hit.url}; L._imgEl=null; L.ox=0; L.oy=0;
+  (cache.pending||(cache.pending=new Set())).add(hit.url);
+}
+function loadCroppedImages(cache){
+  (cache.pending||[]).forEach(url=>{
+    const im=new Image();
+    im.onload=()=>{
+      const all=state.layers.concat(...state.frames.map(f=>f.layers));
+      all.forEach(L=>{ if(L.img && L.img.dataURL===url) L._imgEl=im; });
+      state.thumbsDirty=true; render(); buildLayers();
+    };
+    im.src=url;
+  });
+}
 export function applyCrop(cx,cy,cw,ch){
   cx=Math.max(0,cx|0); cy=Math.max(0,cy|0);
   cw=Math.max(1,Math.min(cw|0,state.W-cx)); ch=Math.max(1,Math.min(ch|0,state.H-cy));
   if(cw===state.W && ch===state.H && cx===0 && cy===0) return;
   if(state.activeShape) bakeShape();
+  if(state.textEditing) commitCanvasText();
   commitFloat(); state.sel=null;
+  snapshot();                                  // état d'avant : « Annuler » restaure l'ancien canevas
+  const cache=new Map();
   transformAllFrames(layers=>{
     layers.forEach(L=>{ if(!L.isGroup) bakeOffset(L); });
     layers.forEach(L=>{
       if(L.isGroup) return;
-      if(L.img){ L.ox=(L.ox||0)-cx; L.oy=(L.oy||0)-cy; return; }
+      if(L.img){ cropImageLayer(L,cx,cy,cw,ch,cache); return; }
       const nd=new Array(cw*ch).fill(null);
-      for(let y=0;y<ch;y++) for(let x=0;x<cw;x++){ const sx=cx+x, sy=cy+y;
-        if(sx<state.W && sy<state.H) nd[y*cw+x]=L.data[sy*state.W+sx]; }
+      for(let y=0;y<ch;y++) for(let x=0;x<cw;x++){ nd[y*cw+x]=L.data[(cy+y)*state.W+cx+x]; }
       L.data=nd;
+      if(L.text){ L.text.ax-=cx; L.text.ay-=cy; }
     });
   });
   state.W=cw; state.H=ch;
   state.active=Math.min(state.active,state.layers.length-1);
   syncPresetToSize();
   invalidateCropForNewSize();
-  history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();
-  showToast("Image rognée à "+cw+"×"+ch+".",{type:"success"});
+  loadCroppedImages(cache);
+  showToast("Image rognée à "+cw+"×"+ch+" — Ctrl/⌘Z pour annuler.",{type:"success"});
 }
+// annuler / rétablir un rognage change la taille du canevas : on remet zoom, champs et préréglage à jour
+// (enregistré depuis main.js : history.js ↔ ui.js forment un cycle d'imports)
+export function afterSizeRestore(){ syncPresetToSize(); invalidateCropForNewSize(); fitZoom(); }
 
 // ---------- Rotation / miroir du canevas ----------
 function transformImageLayer(L,op){

@@ -3,7 +3,7 @@ import { compositeLayers, newLayer, newImageLayer, render, encodeLayers, decodeL
 import { snapshot, history, onSnapshot } from "./history.js";
 import { bakeShape } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
-import { buildLayers, buildSwatches, presetSel, PRESETS, setProjectName, openColorPicker } from "./ui.js";
+import { buildLayers, buildSwatches, presetSel, PRESETS, setProjectName, openColorPicker, commitCanvasText } from "./ui.js";
 import { showToast } from "./toast.js";
 import { framesSnapshotForSave, loadFramesFromSave } from "./frames.js";
 
@@ -18,9 +18,9 @@ function flattenCanvas(ls,scale,bg){
   cx.drawImage(tmp,0,0,c.width,c.height);
   return c;
 }
-function svgString(ls,scale){
+function svgString(ls,scale,bg){
   const img=compositeLayers(ls).data;
-  let rects="";
+  let rects=bg?`<rect x="0" y="0" width="${state.W}" height="${state.H}" fill="${bg}"/>`:"";
   for(let y=0;y<state.H;y++){
     let x=0;
     while(x<state.W){
@@ -44,17 +44,62 @@ function download(url,name){ const a=document.createElement("a"); a.href=url; a.
 function stamp2(){ return new Date().toISOString().slice(0,10); }
 function safeName(s){ return (s||"").trim().replace(/[^\w\-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"carte"; }
 
-// ---------- Modale d'export PNG (taille, fond, nom de fichier) ----------
-const PNG_MAX_SIDE=16384;                     // limite de taille de canevas des navigateurs
+// ---------- Modale d'export (Fichier › Exporter…) ----------
+// Tous les formats au même endroit ; les réglages (format, échelle, fond…) peuvent être
+// enregistrés sous un nom et rappelés plus tard (localStorage, sur cet appareil).
+const EXPORT_MAX_SIDE=16384;                  // limite de taille de canevas des navigateurs
 const QUICK_SCALES=[1,2,4,8,16];
-const pngModal=document.getElementById("pngModal");
-const pngScaleEl=document.getElementById("pngScale"), pngBgOn=document.getElementById("pngBgOn");
-const pngBgSw=document.getElementById("pngBgColor"), pngPicker=document.getElementById("pngScalePicker");
-let pngBgHex="#FFFFFF";
-function pngScale(){ return Math.max(1,Math.min(64,+pngScaleEl.value||1)); }
-function buildPngScalePicker(){
-  pngPicker.innerHTML="";
-  const reco=+document.getElementById("expScale").value||0;
+const EXPORT_PRESETS_KEY="eupix.exportPresets", EXPORT_LAST_KEY="eupix.exportLast";
+const FORMATS={
+  png:    {label:"PNG",             ext:"png", scale:true,  bg:"opt",   hint:"Image raster, fond transparent possible"},
+  jpg:    {label:"JPG",             ext:"jpg", scale:true,  bg:"force", quality:true, hint:"Photo compressée, toujours sur fond plein"},
+  svg:    {label:"SVG",             ext:"svg", scale:true,  bg:"opt",   hint:"Vectoriel, net à toutes les tailles (impression)"},
+  sprites:{label:"Planche de sprites", ext:"png", scale:true, bg:"opt", cols:true, hint:"Toutes les frames de l'animation en grille"},
+  ascii:  {label:"ASCII art",       ext:"txt", hint:"Niveaux de gris en caractères"},
+  grid:   {label:"Grille de couleurs", ext:"txt", hint:"Une valeur hexa par pixel"},
+  palette:{label:"Palette",         ext:"json", hint:"Couleurs ajoutées au projet, réimportables"},
+};
+const DEFAULT_EXPORT={ format:"png", scale:6, bgOn:false, bgHex:"#FFFFFF", quality:95, cols:0 };
+const $=id=>document.getElementById(id);
+const exportModal=$("exportModal"), exScaleEl=$("exScale"), exBgOn=$("exBgOn"), exBgSw=$("exBgColor");
+let exFormat="png", exBgHex="#FFFFFF";
+
+function readJSON(key,fallback){ try{ const v=JSON.parse(localStorage.getItem(key)); return v==null?fallback:v; }catch(_){ return fallback; } }
+function writeJSON(key,v){ try{ localStorage.setItem(key,JSON.stringify(v)); return true; }catch(_){ return false; } }
+function getExportPresets(){ const l=readJSON(EXPORT_PRESETS_KEY,[]); return Array.isArray(l)?l.filter(x=>x && typeof x.name==="string" && x.settings):[]; }
+
+function exScale(){ return Math.max(1,Math.min(64,+exScaleEl.value||1)); }
+function exCols(){ return Math.max(0,Math.min(64,Math.round(+$("exCols").value||0))); }
+function exQuality(){ return Math.max(50,Math.min(100,+$("exQuality").value||95)); }
+function currentExportSettings(){
+  return { format:exFormat, scale:exScale(), bgOn:exBgOn.checked, bgHex:exBgHex, quality:exQuality(), cols:exCols() };
+}
+function applyExportSettings(st){
+  st=Object.assign({},DEFAULT_EXPORT,st||{});
+  exFormat=FORMATS[st.format]?st.format:"png";
+  exScaleEl.value=Math.max(1,Math.min(64,+st.scale||6));
+  exBgOn.checked=!!st.bgOn;
+  exBgHex=/^#[0-9a-fA-F]{6}$/.test(st.bgHex)?st.bgHex.toUpperCase():"#FFFFFF";
+  $("exQuality").value=Math.max(50,Math.min(100,+st.quality||95));
+  $("exCols").value=Math.max(0,Math.min(64,+st.cols||0));
+}
+function spriteGrid(){
+  const n=Math.max(1,state.frames.length), cols=exCols()||Math.ceil(Math.sqrt(n)), c=Math.min(cols,n);
+  return {cols:c, rows:Math.ceil(n/c), n};
+}
+function exportBg(){ const f=FORMATS[exFormat]; return f.bg==="force"||exBgOn.checked ? exBgHex : null; }
+function buildExportFormatPicker(){
+  const box=$("exFormats"); box.innerHTML="";
+  for(const k of Object.keys(FORMATS)){
+    const b=document.createElement("button"); b.type="button"; b.className="mini"; b.dataset.fmt=k;
+    b.textContent=FORMATS[k].label; b.title=FORMATS[k].hint;
+    b.addEventListener("click",()=>{ exFormat=k; refreshExportModal(); });
+    box.appendChild(b);
+  }
+}
+function buildExportScalePicker(){
+  const box=$("exScalePicker"); box.innerHTML="";
+  const reco=+$("expScale").value||0;
   const scales=QUICK_SCALES.slice();
   if(reco && !scales.includes(reco)) scales.push(reco);
   scales.sort((a,b)=>a-b);
@@ -62,85 +107,149 @@ function buildPngScalePicker(){
     const b=document.createElement("button"); b.type="button"; b.className="mini"; b.dataset.scale=v;
     b.textContent="×"+v+(v===reco?" ✓":"");
     b.title=v===reco?"Échelle conseillée pour ce format":(state.W*v)+" × "+(state.H*v)+" px";
-    b.addEventListener("click",()=>{ pngScaleEl.value=v; refreshPngModal(); });
-    pngPicker.appendChild(b);
+    b.addEventListener("click",()=>{ exScaleEl.value=v; refreshExportModal(); });
+    box.appendChild(b);
   }
 }
-function refreshPngModal(){
-  const sc=pngScale(), w=state.W*sc, h=state.H*sc;
-  [...pngPicker.children].forEach(b=>b.classList.toggle("active",+b.dataset.scale===sc));
-  pngBgSw.disabled=!pngBgOn.checked;
-  pngBgSw.style.background=pngBgOn.checked?pngBgHex:"transparent";
-  const over=w>PNG_MAX_SIDE||h>PNG_MAX_SIDE;
-  const sum=document.getElementById("pngSummary");
-  sum.textContent=w+" × "+h+" px"+(pngBgOn.checked?"":" · transparent");
-  sum.classList.toggle("over",over);
-  const warn=document.getElementById("pngWarn");
-  warn.hidden=!over;
-  if(over) warn.textContent=`Trop grand : les navigateurs ne dépassent pas ${PNG_MAX_SIDE} px de côté. Réduis l'échelle.`;
-  document.getElementById("pngOk").disabled=over;
+function buildExportPresetSelect(selected){
+  const sel=$("exPresetSel"); sel.innerHTML="";
+  const o0=document.createElement("option"); o0.value=""; o0.textContent="— Réglages actuels —"; sel.appendChild(o0);
+  getExportPresets().forEach(p=>{ const o=document.createElement("option"); o.value=p.name; o.textContent=p.name; sel.appendChild(o); });
+  sel.value=selected||"";
+  $("exPresetDel").disabled=!sel.value;
 }
-function openPngModal(){
+function exportDims(){
+  const sc=exScale();
+  if(exFormat==="sprites"){ const g=spriteGrid(); return {w:g.cols*state.W*sc, h:g.rows*state.H*sc, g}; }
+  return {w:state.W*sc, h:state.H*sc};
+}
+function refreshExportModal(){
+  const f=FORMATS[exFormat], sc=exScale();
+  [...$("exFormats").children].forEach(b=>b.classList.toggle("active",b.dataset.fmt===exFormat));
+  [...$("exScalePicker").children].forEach(b=>b.classList.toggle("active",+b.dataset.scale===sc));
+  $("exExt").textContent="."+f.ext;
+  $("exFmtHint").textContent=f.hint;
+  $("exScaleRow").hidden=!f.scale;
+  $("exBgRow").hidden=!f.bg;
+  $("exQualityRow").hidden=!f.quality;
+  $("exColsRow").hidden=!f.cols;
+  $("exQualityV").textContent=exQuality()+" %";
+  if(f.bg==="force"){ exBgOn.checked=true; exBgOn.disabled=true; } else exBgOn.disabled=false;
+  exBgSw.disabled=!exBgOn.checked;
+  exBgSw.style.background=exBgOn.checked?exBgHex:"transparent";
+  const sum=$("exSummary"), warn=$("exWarn"); let msg="", err="";
+  if(f.scale){
+    const d=exportDims();
+    msg=d.w+" × "+d.h+" px"+(exportBg()?"":" · transparent");
+    if(exFormat==="sprites") msg+=" · "+d.g.n+" frame"+(d.g.n>1?"s":"")+" en "+d.g.cols+"×"+d.g.rows;
+    if(exFormat!=="svg" && (d.w>EXPORT_MAX_SIDE||d.h>EXPORT_MAX_SIDE)) err=`Trop grand : les navigateurs ne dépassent pas ${EXPORT_MAX_SIDE} px de côté. Réduis l'échelle.`;
+    if(exFormat==="sprites" && state.frames.length<2) err="Il faut au moins 2 frames pour une planche de sprites.";
+  } else if(exFormat==="palette"){
+    msg=state.customColors.length+" couleur"+(state.customColors.length>1?"s":"");
+    if(!state.customColors.length) err="Aucune couleur personnalisée à exporter.";
+  } else msg=state.W+" × "+state.H+" caractères/valeurs";
+  sum.textContent=msg; sum.classList.toggle("over",!!err);
+  warn.hidden=!err; warn.textContent=err;
+  $("exOk").disabled=!!err;
+}
+function openExportModal(){
   if(state.activeShape) bakeShape();
-  document.getElementById("pngName").value=`${safeName(state.projectName)}_${state.W}x${state.H}`;
-  pngScaleEl.value=+document.getElementById("expScale").value||6;
-  buildPngScalePicker();
-  refreshPngModal();
-  pngModal.classList.add("open");
+  if(state.textEditing) commitCanvasText();
+  buildExportFormatPicker();
+  applyExportSettings(readJSON(EXPORT_LAST_KEY,null) || {scale:+$("expScale").value||6});
+  $("exName").value=`${safeName(state.projectName)}_${state.W}x${state.H}`;
+  $("exPresetName").value="";
+  buildExportScalePicker(); buildExportPresetSelect("");
+  refreshExportModal();
+  exportModal.classList.add("open");
 }
-function closePngModal(){ pngModal.classList.remove("open"); }
-function doPngExport(){
-  const sc=pngScale();
-  if(state.W*sc>PNG_MAX_SIDE||state.H*sc>PNG_MAX_SIDE) return;
-  const bg=pngBgOn.checked?pngBgHex:null;
-  const name=(document.getElementById("pngName").value||"").trim();
-  const file=(safeName(name)||safeName(state.projectName))+"_x"+sc+".png";
-  closePngModal();
-  document.getElementById("expScale").value=sc;      // les autres exports suivent la même échelle
-  download(flattenCanvas(state.layers,sc,bg).toDataURL("image/png"),file);
-  showToast(`PNG exporté (${state.W*sc} × ${state.H*sc} px${bg?"":", fond transparent"}).`,{type:"success"});
+function closeExportModal(){ exportModal.classList.remove("open"); }
+function exportFileName(sc){
+  const base=safeName($("exName").value)||safeName(state.projectName);
+  const f=FORMATS[exFormat];
+  const suffix= exFormat==="sprites" ? `_sprites_${state.frames.length}f_x${sc}`
+    : (exFormat==="png"||exFormat==="jpg") ? `_x${sc}`
+    : exFormat==="ascii" ? ".ascii" : exFormat==="grid" ? ".grid" : exFormat==="svg" ? `_x${sc}` : "";
+  return base+suffix+"."+f.ext;
 }
-document.getElementById("expPNG").onclick=openPngModal;
-pngScaleEl.oninput=refreshPngModal;
-pngBgOn.onchange=refreshPngModal;
-pngBgSw.onclick=()=>openColorPicker(pngBgSw, pngBgHex, hex=>{ pngBgHex=hex; refreshPngModal(); });
-document.getElementById("pngCancel").onclick=closePngModal;
-document.getElementById("pngClose").onclick=closePngModal;
-pngModal.addEventListener("click",e=>{ if(e.target.id==="pngModal") closePngModal(); });
-document.getElementById("pngOk").onclick=doPngExport;
-document.getElementById("pngName").addEventListener("keydown",e=>{ e.stopPropagation();
-  if(e.key==="Enter"){ e.preventDefault(); doPngExport(); }
-  else if(e.key==="Escape"){ e.preventDefault(); closePngModal(); } });
-pngScaleEl.addEventListener("keydown",e=>{ e.stopPropagation();
-  if(e.key==="Enter"){ e.preventDefault(); doPngExport(); }
-  else if(e.key==="Escape"){ e.preventDefault(); closePngModal(); } });
-window.addEventListener("keydown",e=>{
-  if(e.key==="Escape" && pngModal.classList.contains("open")){ e.stopPropagation(); closePngModal(); }
-},true);
-document.getElementById("expJPG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download(flattenCanvas(state.layers,s,"#FFFFFF").toDataURL("image/jpeg",0.95),`${safeName(state.projectName)}_${state.W}x${state.H}_x${s}.jpg`);
-  showToast("JPG exporté.",{type:"success"}); };
-document.getElementById("expSVG").onclick=()=>{ if(state.activeShape) bakeShape(); const s=+document.getElementById("expScale").value||6;
-  download("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svgString(state.layers,s)),`${safeName(state.projectName)}_${state.W}x${state.H}.svg`);
-  showToast("SVG exporté.",{type:"success"}); };
-
-// ---------- Export planche de sprites (PNG, toutes les frames en grille) ----------
-document.getElementById("expSpriteSheet").onclick=()=>{
+function doExport(){
+  if($("exOk").disabled) return;
+  const f=FORMATS[exFormat], sc=exScale(), bg=exportBg(), file=exportFileName(sc);
+  const st=currentExportSettings();
+  closeExportModal();
+  writeJSON(EXPORT_LAST_KEY,st);
+  if(f.scale) $("expScale").value=Math.min(30,sc);     // les autres traitements (lot) suivent la même échelle
   if(state.activeShape) bakeShape();
-  const frames=state.frames;
-  if(!frames || frames.length<2){ showToast("Il faut au moins 2 frames pour une planche de sprites.",{type:"warn"}); return; }
-  const s=+document.getElementById("expScale").value||6;
-  const cols=Math.ceil(Math.sqrt(frames.length)), rows=Math.ceil(frames.length/cols);
-  const cw=state.W*s, ch=state.H*s;
-  const sheet=document.createElement("canvas"); sheet.width=cw*cols; sheet.height=ch*rows;
-  const sctx=sheet.getContext("2d"); sctx.imageSmoothingEnabled=false;
-  frames.forEach((f,i)=>{
-    const layers = i===state.activeFrame ? state.layers : f.layers;
-    sctx.drawImage(flattenCanvas(layers,s,null), (i%cols)*cw, Math.floor(i/cols)*ch);
-  });
-  download(sheet.toDataURL("image/png"), `${safeName(state.projectName)}_sprites_${state.W}x${state.H}_${frames.length}f.png`);
-  showToast(`Planche de sprites exportée (${cols}×${rows}, ${frames.length} frames).`,{type:"success"});
+  if(exFormat==="png"){
+    download(flattenCanvas(state.layers,sc,bg).toDataURL("image/png"),file);
+    showToast(`PNG exporté (${state.W*sc} × ${state.H*sc} px${bg?"":", fond transparent"}).`,{type:"success"});
+  } else if(exFormat==="jpg"){
+    download(flattenCanvas(state.layers,sc,bg).toDataURL("image/jpeg",st.quality/100),file);
+    showToast(`JPG exporté (${state.W*sc} × ${state.H*sc} px, qualité ${st.quality} %).`,{type:"success"});
+  } else if(exFormat==="svg"){
+    download("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svgString(state.layers,sc,bg)),file);
+    showToast("SVG exporté.",{type:"success"});
+  } else if(exFormat==="sprites"){
+    const frames=state.frames, g=spriteGrid(), cw=state.W*sc, ch=state.H*sc;
+    const sheet=document.createElement("canvas"); sheet.width=cw*g.cols; sheet.height=ch*g.rows;
+    const sctx=sheet.getContext("2d"); sctx.imageSmoothingEnabled=false;
+    if(bg){ sctx.fillStyle=bg; sctx.fillRect(0,0,sheet.width,sheet.height); }
+    frames.forEach((fr,i)=>{
+      const layers = i===state.activeFrame ? state.layers : fr.layers;
+      sctx.drawImage(flattenCanvas(layers,sc,null), (i%g.cols)*cw, Math.floor(i/g.cols)*ch);
+    });
+    download(sheet.toDataURL("image/png"),file);
+    showToast(`Planche de sprites exportée (${g.cols}×${g.rows}, ${frames.length} frames).`,{type:"success"});
+  } else if(exFormat==="ascii"){
+    download("data:text/plain;charset=utf-8,"+encodeURIComponent(asciiArt()),file);
+    showToast("ASCII art exporté.",{type:"success"});
+  } else if(exFormat==="grid"){
+    download("data:text/plain;charset=utf-8,"+encodeURIComponent(colorGrid()),file);
+    showToast("Grille de couleurs exportée.",{type:"success"});
+  } else if(exFormat==="palette"){
+    const pal={format:"eu-pix-palette",version:1,colors:state.customColors};
+    download("data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(pal)),file);
+    showToast("Palette exportée.",{type:"success"});
+  }
+}
+// réglages enregistrés
+$("exPresetSel").onchange=e=>{
+  const p=getExportPresets().find(x=>x.name===e.target.value);
+  $("exPresetDel").disabled=!p;
+  if(!p) return;
+  applyExportSettings(p.settings); $("exPresetName").value=p.name; refreshExportModal();
 };
+$("exPresetSave").onclick=()=>{
+  const name=$("exPresetName").value.trim().slice(0,40);
+  if(!name){ showToast("Donne un nom à ces réglages pour les enregistrer.",{type:"warn"}); $("exPresetName").focus(); return; }
+  const list=getExportPresets().filter(x=>x.name!==name);
+  list.push({name,settings:currentExportSettings()});
+  if(!writeJSON(EXPORT_PRESETS_KEY,list)){ showToast("Enregistrement impossible (stockage du navigateur indisponible).",{type:"error"}); return; }
+  buildExportPresetSelect(name);
+  showToast(`Réglages « ${name} » enregistrés.`,{type:"success"});
+};
+$("exPresetDel").onclick=()=>{
+  const name=$("exPresetSel").value; if(!name) return;
+  writeJSON(EXPORT_PRESETS_KEY,getExportPresets().filter(x=>x.name!==name));
+  $("exPresetName").value=""; buildExportPresetSelect("");
+  showToast(`Réglages « ${name} » supprimés.`,{type:"info"});
+};
+$("miExport").onclick=openExportModal;
+exScaleEl.oninput=refreshExportModal;
+$("exCols").oninput=refreshExportModal;
+$("exQuality").oninput=refreshExportModal;
+exBgOn.onchange=refreshExportModal;
+exBgSw.onclick=()=>openColorPicker(exBgSw, exBgHex, hex=>{ exBgHex=hex; refreshExportModal(); });
+$("exCancel").onclick=closeExportModal;
+$("exClose").onclick=closeExportModal;
+exportModal.addEventListener("click",e=>{ if(e.target.id==="exportModal") closeExportModal(); });
+$("exOk").onclick=doExport;
+["exName","exScale","exCols","exPresetName"].forEach(id=>$(id).addEventListener("keydown",e=>{ e.stopPropagation();
+  if(e.key==="Enter"){ e.preventDefault(); if(id==="exPresetName") $("exPresetSave").click(); else doExport(); }
+  else if(e.key==="Escape"){ e.preventDefault(); closeExportModal(); } }));
+window.addEventListener("keydown",e=>{
+  if(e.key==="Escape" && exportModal.classList.contains("open")){ e.stopPropagation(); closeExportModal(); }
+},true);
 
 // ---------- Export texte : ASCII art (niveaux de gris) et grille de couleurs hexa ----------
 const ASCII_RAMP=" .:-=+*#%@";
@@ -162,12 +271,6 @@ function colorGrid(){
     out+=cells.join(" ")+"\n"; }
   return out;
 }
-document.getElementById("expAscii").onclick=()=>{ if(state.activeShape) bakeShape();
-  download("data:text/plain;charset=utf-8,"+encodeURIComponent(asciiArt()),`${safeName(state.projectName)}_${state.W}x${state.H}.ascii.txt`);
-  showToast("ASCII art exporté.",{type:"success"}); };
-document.getElementById("expGrid").onclick=()=>{ if(state.activeShape) bakeShape();
-  download("data:text/plain;charset=utf-8,"+encodeURIComponent(colorGrid()),`${safeName(state.projectName)}_${state.W}x${state.H}.grid.txt`);
-  showToast("Grille de couleurs exportée.",{type:"success"}); };
 
 // ---------- Export groupé (ZIP store, sans dépendance) ----------
 const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
@@ -292,13 +395,7 @@ export function pushRecent(){
 export function removeRecent(id){
   try{ localStorage.setItem(RECENTS_KEY, JSON.stringify(getRecents().filter(r=>r.id!==id))); }catch(_){}
 }
-// ---------- Palette : import / export (JSON, couleurs personnalisées seulement) ----------
-document.getElementById("expPalette").onclick=()=>{
-  if(!state.customColors.length){ showToast("Aucune couleur personnalisée à exporter.",{type:"warn"}); return; }
-  const pal={format:"eu-pix-palette",version:1,colors:state.customColors};
-  download("data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(pal)),`palette_${stamp2()}.json`);
-  showToast("Palette exportée.",{type:"success"});
-};
+// ---------- Palette : import (JSON) — l'export se fait dans Fichier › Exporter… ----------
 document.getElementById("impPaletteBtn").onclick=()=>document.getElementById("impPaletteFile").click();
 document.getElementById("impPaletteFile").onchange=e=>{
   const f=e.target.files[0]; if(!f) return;

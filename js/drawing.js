@@ -4,6 +4,7 @@ import { snapshot } from "./history.js";
 import { setHint } from "./interaction.js";
 import { buildLayers, commitCanvasText } from "./ui.js";
 import { showToast } from "./toast.js";
+import { BAYER4, BAYER8 } from "./dither.js";
 
 // ---------- Drawing primitives ----------
 // ---------- Symétrie ----------
@@ -90,18 +91,35 @@ export function pointInPoly(px,py,vs){
   }
   return inside;
 }
+// distance entre deux couleurs hexa (0 = identiques, ~441 = noir / blanc) ; null = transparent
+const _rgbCache=new Map();
+const rgbOf=h=>{ let v=_rgbCache.get(h); if(!v){ v=hexToRgb(h); _rgbCache.set(h,v); } return v; };
+export function colorDist(a,b){
+  if(a===b) return 0; if(a===null||b===null) return Infinity;
+  const p=rgbOf(a),q=rgbOf(b); return Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2]);
+}
+// Cellules du calque L proches (tolérance en %) de la couleur de (x,y) : contiguës ou sur tout le calque
+export function collectRegion(L,x,y,tolPct,contiguous){
+  const targ=layerAt(L,x,y), maxD=(tolPct||0)/100*441.7, cells=[];
+  const like=(cx,cy)=>colorDist(layerAt(L,cx,cy),targ)<=maxD;
+  if(!contiguous){
+    for(let cy=0;cy<state.H;cy++) for(let cx=0;cx<state.W;cx++) if(like(cx,cy)) cells.push([cx,cy]);
+    return cells;
+  }
+  const seen=new Uint8Array(state.W*state.H), st=[[x,y]];
+  while(st.length){
+    const [cx,cy]=st.pop(); if(cx<0||cy<0||cx>=state.W||cy>=state.H) continue;
+    const k=cy*state.W+cx; if(seen[k]) continue;
+    seen[k]=1; if(!like(cx,cy)) continue;
+    cells.push([cx,cy]); st.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+  }
+  return cells;
+}
 export function floodFill(x,y,col){
   const L=state.layers[state.active]; const targ=layerAt(L,x,y);
   if(targ===col) return;
   if(L.alphaLock && targ===null){ setHint("Transparence verrouillée — clique sur un pixel déjà peint"); return; }
-  const seen=new Uint8Array(state.W*state.H); const st=[[x,y]];
-  while(st.length){
-    const [cx,cy]=st.pop(); if(cx<0||cy<0||cx>=state.W||cy>=state.H) continue;
-    const k=cy*state.W+cx; if(seen[k]) continue;
-    if(layerAt(L,cx,cy)!==targ) continue;
-    seen[k]=1; setLayerAt(L,cx,cy,col);
-    st.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
-  }
+  for(const [cx,cy] of collectRegion(L,x,y,state.fillTol,state.fillContig)) setLayerAt(L,cx,cy,col);
 }
 
 // ---------- Baguette magique : sélectionne les pixels de même couleur (contigus ou non) ----------
@@ -411,11 +429,6 @@ document.getElementById("transformLayer").onclick=enterLayerTransform;
 // recalculé à chaque changement de réglage ; il n'est versé dans l'historique qu'à la validation.
 // Étapes : rendu de l'image sur le canevas → moyenne par blocs → palette (médiane coupée sur les
 // couleurs de l'image, ou noir & blanc) → association des blocs à la palette, avec tramage.
-const BAYER4=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
-const BAYER8=(()=>{ const m=[[0,2],[3,1]]; let n=2, cur=m;
-  while(n<8){ const nn=n*2, nx=[]; for(let y=0;y<nn;y++){ nx.push([]); for(let x=0;x<nn;x++){
-      nx[y].push(4*cur[y%n][x%n]+m[(y/n)|0][(x/n)|0]); } } cur=nx; n=nn; }
-  return cur; })();
 // diffusion d'erreur : [dx, dy, poids], diviseur
 const DIFFUSION={
   floyd:  { div:16, k:[[1,0,7],[-1,1,3],[0,1,5],[1,1,1]] },

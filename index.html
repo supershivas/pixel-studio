@@ -232,6 +232,10 @@
   .current{display:flex;align-items:center;gap:10px;margin-top:12px}
   .current .chip{width:34px;height:34px;border-radius:6px;border:1px solid var(--line);padding:0;cursor:pointer}
   .current .chip:hover{border-color:var(--ink)}
+  .chips{position:relative;width:46px;height:42px;flex:0 0 auto}
+  .chips .chip{position:absolute;left:0;top:0}
+  .chips .chip2{left:18px;top:14px;width:26px;height:26px;z-index:0}
+  .chips #curChip{z-index:1}
   .shade{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);cursor:pointer;padding:0}
   .shade:hover{border-color:var(--ink)}
   .colorpop{position:fixed;z-index:120;width:184px;background:var(--panel);border:1px solid var(--line);
@@ -499,6 +503,7 @@
         <button class="menu-item" id="fxGoColor" data-close>Couleur…</button>
         <button class="menu-item" id="invertLayer" data-close>Inverser les couleurs…</button>
         <button class="menu-item" id="snapLayerPalette" data-close>Reposer sur la palette…</button>
+        <button class="menu-item" id="fxReplace" data-close>Remplacer une couleur…</button>
         <button class="menu-item" id="fxGoMirror" data-close>Miroir…</button>
         <button class="menu-item" id="fxGoStroke" data-close>Contour…</button>
         <button class="menu-item" id="fxGoShadow" data-close>Ombre portée…</button>
@@ -529,6 +534,24 @@
       <option value="xy">Les deux</option>
     </select>
   </div>
+  <label class="check" id="optPixelPerfect"><input type="checkbox" id="pixelPerfect"> Pixel perfect (sans coins en L)</label>
+  <div class="row" id="optFillTol">Tolérance <input type="range" id="fillTol" min="0" max="100" value="0"><span class="readout" id="fillTolV">0 %</span>
+    <label class="check"><input type="checkbox" id="fillContig" checked> Contigus</label></div>
+  <div class="row" id="optGradient">Forme
+    <select id="gradShape"><option value="linear">Linéaire</option><option value="radial">Radial</option></select>
+    Style
+    <select id="gradStyle">
+      <option value="bayer4">Tramé 4×4</option>
+      <option value="bayer8">Tramé 8×8</option>
+      <option value="bands">Paliers</option>
+      <option value="smooth">Lisse</option>
+    </select>
+    <span id="gradStepsWrap">Paliers <input type="number" id="gradSteps" min="2" max="16" value="4"></span>
+    <label class="check"><input type="checkbox" id="gradClear"> Vers transparent</label>
+    <label class="check"><input type="checkbox" id="gradPainted"> Pixels peints seulement</label></div>
+  <div class="row" id="optDither">Motif <div class="shapekind-picker" id="ditherPicker"></div>
+    Fond <select id="ditherBg"><option value="clear">Transparent</option><option value="color2">Couleur secondaire</option></select>
+    Mode <select id="ditherMode"><option value="brush">Pinceau</option><option value="fill">Remplissage</option></select></div>
   <label class="check" id="optWand"><input type="checkbox" id="wandContiguous" checked> Pixels contigus uniquement</label>
   <div class="row" id="optCrop">
     X <input type="number" id="cropX" min="0" style="width:56px">
@@ -579,7 +602,11 @@
       </div>
       <div class="swatches" id="swatches"></div>
       <div class="current">
-        <button class="chip" id="curChip" title="Choisir une couleur"></button>
+        <div class="chips">
+          <button class="chip" id="curChip" title="Couleur principale — clic pour choisir"></button>
+          <button class="chip chip2" id="curChip2" title="Couleur secondaire (dégradé, fond du tramage) — Alt+clic sur une couleur de la palette"></button>
+        </div>
+        <button class="mini" id="swapColors" title="Échanger les couleurs (X)">⇄</button>
         <code id="curHex">#003399</code>
         <span style="flex:1"></span>
         <button class="shade" id="shadeDark" title="Plus foncé"></button>
@@ -754,6 +781,26 @@
       <div class="menu-label" style="padding-left:0;margin-top:16px">Projets récents (sur cet appareil)</div>
       <div class="home-recents" id="homeRecents"></div>
       <p class="note" id="homeEmptyNote" hidden>Aucun projet récent pour l'instant — enregistre ou ferme un projet pour le retrouver ici.</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="replaceModal">
+  <div class="modal w380" role="dialog" aria-label="Remplacer une couleur">
+    <header><h2>Remplacer une couleur</h2><button class="modal-x" id="replaceClose" title="Fermer" aria-label="Fermer">×</button></header>
+    <div class="body">
+      <div class="pref"><div class="lbl">Couleur à remplacer<small>Par défaut : la couleur principale</small></div>
+        <button class="fxsw" id="repFrom" title="Choisir la couleur"></button></div>
+      <div class="pref"><div class="lbl">Remplacer par<small>Par défaut : la couleur secondaire</small></div>
+        <button class="fxsw" id="repTo" title="Choisir la couleur"></button></div>
+      <div class="pref"><div class="lbl">Tolérance<small>Inclut aussi les couleurs proches</small></div>
+        <div class="inline"><input type="range" id="repTol" min="0" max="100" value="0"><span class="readout" id="repTolV">0 %</span></div></div>
+      <div class="pref"><div class="lbl">Portée</div>
+        <select id="repScope"><option value="layer">Calque actif</option><option value="selection">Sélection</option><option value="all">Tous les calques</option></select></div>
+    </div>
+    <div class="foot">
+      <button id="replaceCancel">Annuler</button>
+      <button class="primary" id="replaceOk">Remplacer</button>
     </div>
   </div>
 </div>

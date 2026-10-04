@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.10.1";
+export const APP_VERSION = "1.11.0";
 
 // ---------- Palette de base ----------
 // Ordre d'affichage (grille de 6 colonnes) : neutres (blanc, noir, [transparent ajouté par l'UI],
@@ -18,6 +18,7 @@ export const PALETTE = [
 export const state = {
   W: 50, H: 70, zoom: 12,
   color: "#003399",
+  color2: "#FFFFFF",   // couleur secondaire (dégradé, fond du tramage) — X échange les deux
   brush: 1,
   strokeWidth: 1,
   tool: "pencil",
@@ -55,6 +56,10 @@ export const state = {
   lasso: null,         // points [x,y] du tracé en cours de l'outil Lasso
   cropRect: null,      // {x,y,w,h} en cours de définition avec l'outil Recadrer
   wandContiguous: true,
+  fillTol: 0, fillContig: true,                 // pot de peinture : tolérance (%) et contiguïté
+  pixelPerfect: false,                          // crayon : supprime les coins en L
+  gradShape: "linear", gradStyle: "bayer4", gradSteps: 4, gradClear: false, gradPainted: false, gradDrag: null,
+  ditherPattern: "checker", ditherBg: "clear", ditherMode: "brush",
 
   textAnchor: {x:0,y:0}, textEditing: false, caretOn: true,
 };

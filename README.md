@@ -11,6 +11,8 @@
   - `history.js` — annuler / rétablir
   - `drawing.js` — primitives de dessin, texte pixel, formes vectorielles
   - `interaction.js` — pointeur, clavier, zoom, navigation
+  - `patterns.js` — outils Dégradé et Tramage, remplacer une couleur
+  - `dither.js` — matrices de Bayer partagées
   - `ui.js` — outils, palette, sélecteur de couleur, calques, modales
   - `frames.js` — frames de l'animation
   - `home.js` — page d'accueil, fermeture / création de projet
@@ -28,7 +30,10 @@
 | `Ctrl/⌘ + N` | Nouveau projet (avec proposition d'enregistrement) |
 | `Ctrl/⌘ + W` | Fermer le projet (avec proposition d'enregistrement) |
 | `Ctrl/⌘ + T` | Transformer le calque |
-| `V M W C B E G I F T` | Outils |
+| `V M L W C B E G I F T` | Outils (L = lasso) |
+| `D` / `H` | Dégradé / Tramage |
+| `X` | Échanger couleur principale et secondaire (Alt+clic sur une couleur = secondaire) |
+| `Maj + clic` (crayon) | Ligne droite depuis le dernier point tracé |
 
 `Ctrl/⌘ + N` et `Ctrl/⌘ + W` sont réservés par certains navigateurs (nouvelle fenêtre,
 fermeture de l'onglet) : ils ne parviennent à l'application que lorsque le navigateur les

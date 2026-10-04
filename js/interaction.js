@@ -1,9 +1,10 @@
 import { state, view, hint, stage } from "./state.js";
 import { inBounds, insideRect, render, clampSel, liftSelection, commitFloat, copySelection, cutSelection,
-  deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx } from "./helpers.js";
+  deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx, layerAt, setLayerAt } from "./helpers.js";
 import { snapshot, undo, redo } from "./history.js";
+import { stampPattern, patternFill, gradientPreview, gradientApply } from "./patterns.js";
 import { stamp, line, floodFill, selectSimilar, selectLasso, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
-import { setColor, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, updateCropFields, prefs } from "./ui.js";
+import { setColor, swapColors, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, updateCropFields, prefs } from "./ui.js";
 
 // ---------- Pointer interaction ----------
 let drawing=false, startX=0, startY=0, lastX=0, lastY=0, creating=false, moveOrig=null, moveStart=null;
@@ -24,6 +25,20 @@ export function stampPreview(px,py){ const half=Math.floor((state.brush-1)/2);
   for(const [bx,by] of mirrorPoints(px,py))                       // l'aperçu montre la symétrie, comme le tracé validé
     for(let dy=-half;dy<state.brush-half;dy++) for(let dx=-half;dx<state.brush-half;dx++){
       const nx=bx+dx,ny=by+dy; if(inBounds(nx,ny)) state.previewCells.set(nx+","+ny,state.color); } }
+
+// ---------- Crayon : « pixel perfect » (retire les coins en L) et ligne droite avec Maj ----------
+let ppPath=[], ppOrig=new Map(), lastPen=null;   // lastPen = dernier point tracé {x,y,id} pour Maj+clic
+function penStep(px,py,L){
+  if(!state.pixelPerfect || state.brush!==1 || state.mirror!=="none"){ stamp(px,py,state.color,L); return; }
+  const n=ppPath.length, last=ppPath[n-1];
+  if(last && last[0]===px && last[1]===py) return;
+  if(n>=2){ const a=ppPath[n-2], b=last;
+    const diagonal=Math.abs(px-a[0])===1 && Math.abs(py-a[1])===1;
+    if(diagonal && ((b[0]===a[0]&&b[1]===py)||(b[1]===a[1]&&b[0]===px))){   // a-b-c forment un L : b est superflu
+      setLayerAt(L,b[0],b[1],ppOrig.get(b[0]+","+b[1])); ppPath.pop(); } }
+  const k=px+","+py; if(!ppOrig.has(k)) ppOrig.set(k,layerAt(L,px,py));
+  ppPath.push([px,py]); stamp(px,py,state.color,L);
+}
 
 view.addEventListener("pointerdown",e=>{
   if(spaceHeld || e.button===1) return;   // laisser le pan (géré par la scène)
@@ -52,7 +67,16 @@ view.addEventListener("pointerdown",e=>{
   }
   if(state.tool==="move"){ const L=state.layers[state.active]; snapshot(); drawing=true; moveStart={x,y};
     moveOrig={ox:L.ox||0, oy:L.oy||0}; }
-  else if(state.tool==="pencil"){ snapshot(); drawing=true; stamp(x,y,state.color,state.layers[state.active]); render(); }
+  else if(state.tool==="pencil"){ const L=state.layers[state.active]; snapshot(); drawing=true; ppPath=[]; ppOrig=new Map();
+    if(e.shiftKey && lastPen && lastPen.id===L.id) line(lastPen.x,lastPen.y,x,y,(px,py)=>penStep(px,py,L));   // Maj : ligne droite
+    else penStep(x,y,L);
+    render(); }
+  else if(state.tool==="gradient"){ if(state.layers[state.active].img){ setHint("Le dégradé ne s'applique pas aux calques image"); return; }
+    state.gradDrag={x0:x,y0:y,x1:x,y1:y}; drawing=true; gradientPreview(); }
+  else if(state.tool==="dither"){ if(state.layers[state.active].img){ setHint("Le tramage ne s'applique pas aux calques image"); return; }
+    snapshot();
+    if(state.ditherMode==="fill"){ patternFill(x,y); render(); }
+    else { drawing=true; stampPattern(x,y,state.layers[state.active]); render(); } }
   else if(state.tool==="eraser"){ snapshot(); drawing=true; stamp(x,y,null,state.layers[state.active]); render(); }
   else if(state.tool==="fill"){ snapshot(); floodFill(x,y,state.color); render(); }
   else if(state.tool==="eyedropper"){
@@ -127,7 +151,9 @@ view.addEventListener("pointermove",e=>{
   // création d'une forme (glisser pour définir la boîte)
   if(creating){ state.activeShape=makeShape(startX,startY,x,y,e.shiftKey); shapeToPreview(); render(); setHint(e.shiftKey?"régulier (Maj)":"relâche pour éditer"); return; }
 
-  if(state.tool==="pencil"){ line(lastX,lastY,x,y,(px,py)=>stamp(px,py,state.color,state.layers[state.active])); lastX=x;lastY=y; render(); }
+  if(state.tool==="gradient" && state.gradDrag){ state.gradDrag.x1=x; state.gradDrag.y1=y; gradientPreview(); setHint("dégradé "+state.gradDrag.x0+","+state.gradDrag.y0+" → "+x+","+y); return; }
+  if(state.tool==="dither"){ line(lastX,lastY,x,y,(px,py)=>stampPattern(px,py,state.layers[state.active])); lastX=x;lastY=y; render(); }
+  else if(state.tool==="pencil"){ const L=state.layers[state.active]; line(lastX,lastY,x,y,(px,py)=>penStep(px,py,L)); lastX=x;lastY=y; render(); }
   else if(state.tool==="eraser"){ line(lastX,lastY,x,y,(px,py)=>stamp(px,py,null,state.layers[state.active])); lastX=x;lastY=y; render(); }
   else if(state.tool==="shape" && state.shapeKind==="line"){ state.previewCells=new Map(); line(startX,startY,x,y,stampPreview); render(); }
   setHint(inBounds(x,y)?(x+" , "+y):"");
@@ -136,6 +162,8 @@ view.addEventListener("pointermove",e=>{
 view.addEventListener("pointerup",e=>{
   if(!drawing) return;
   const [x,y]=cellFromEvent(e);
+  if(state.tool==="gradient"){ drawing=false; gradientApply(); return; }
+  if(state.tool==="pencil") lastPen={x:lastX,y:lastY,id:state.layers[state.active].id};
   if(state.tool==="lasso" && state.lasso){ const pts=state.lasso; state.lasso=null; drawing=false;
     selectLasso(pts,e.shiftKey); render(); return; }
   if(state.tool==="crop" && state.cropDrag){ state.cropDrag=null; drawing=false;
@@ -213,9 +241,10 @@ window.addEventListener("keydown",e=>{
   if((e.key.startsWith("Arrow")) && (state.sel||state.floatSel)){ e.preventDefault(); const n=e.shiftKey?10:1;
     if(e.key==="ArrowLeft") nudgeSelection(-n,0); else if(e.key==="ArrowRight") nudgeSelection(n,0);
     else if(e.key==="ArrowUp") nudgeSelection(0,-n); else if(e.key==="ArrowDown") nudgeSelection(0,n); return; }
-  const map={v:"move",m:"select",l:"lasso",w:"wand",c:"crop",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",f:"shape",t:"text"};
+  const map={v:"move",m:"select",l:"lasso",d:"gradient",h:"dither",w:"wand",c:"crop",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",f:"shape",t:"text"};
   const k=e.key.toLowerCase();
   if(e.ctrlKey||e.metaKey||e.altKey) return;   // laisser les raccourcis navigateur
+  if(k==="x"){ e.preventDefault(); swapColors(); return; }
   if(map[k]){ e.preventDefault(); setTool(map[k]); return; }
   if(e.key==="+"||e.key==="="){ e.preventDefault(); setZoom(state.zoom+1); return; }
   if(e.key==="-"){ e.preventDefault(); setZoom(state.zoom-1); return; }

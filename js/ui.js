@@ -21,6 +21,10 @@ const TOOLS=[
   {id:"pencil",  k:"B", label:"Crayon",   svg:'<path d="M4 20l3-1 11-11-2-2L5 17l-1 3z" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
   {id:"eraser",  k:"E", label:"Gomme",
     svg:'<g transform="rotate(-40 12 12)"><rect x="5" y="9" width="14" height="8" rx="1.5" fill="currentColor"/><rect x="5" y="9" width="7" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="5" y="9" width="14" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/></g>'},
+  {id:"gradient",k:"D", label:"Dégradé (glisser de A vers B — couleur principale vers secondaire)",
+    svg:'<rect x="4" y="5" width="16" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 5v14M12 5v14M16 5v14" stroke="currentColor" stroke-width="1.6" stroke-dasharray="1.2 1.8"/>'},
+  {id:"dither",  k:"H", label:"Tramage (pinceau à motifs : damier, lignes, trames…)",
+    svg:'<path d="M5 5h3v3H5zM11 5h3v3h-3zM17 5h3v3h-3zM8 8h3v3H8zM14 8h3v3h-3zM5 11h3v3H5zM11 11h3v3h-3zM17 11h3v3h-3zM8 14h3v3H8zM14 14h3v3h-3zM5 17h3v3H5zM11 17h3v3h-3zM17 17h3v3h-3z" fill="currentColor"/>'},
   {id:"fill",    k:"G", label:"Pot de peinture",
     svg:'<path d="M8.5 3.5l9 9-6.5 6.5a4.6 4.6 0 0 1-6.5-6.5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 11.5h11" stroke="currentColor" stroke-width="1.6"/><path d="M17 5l3.3 3.3" stroke="currentColor" stroke-width="1.6"/><circle cx="19.5" cy="18.5" r="2.2" fill="currentColor"/>'},
   {id:"eyedropper",k:"I",label:"Pipette (prélever une couleur)",
@@ -42,11 +46,15 @@ TOOLS.forEach(t=>{
 });
 // options d'outil affichées dans la barre horizontale, selon l'outil actif
 const TOOL_OPT_GROUPS={
-  optBrush:     new Set(["pencil","eraser"]),
+  optBrush:     new Set(["pencil","eraser","dither"]),
+  optPixelPerfect: new Set(["pencil"]),
+  optFillTol:   new Set(["fill"]),
+  optGradient:  new Set(["gradient"]),
+  optDither:    new Set(["dither"]),
   optShapeKind: new Set(["shape"]),
   optFill:      new Set(["shape"]),
   optStroke:    new Set(["shape"]),
-  optMirror:    new Set(["pencil","eraser","shape"]),
+  optMirror:    new Set(["pencil","eraser","shape","dither"]),
   optWand:      new Set(["wand"]),
   optCrop:      new Set(["crop"]),
   textOpts:     new Set(["text"]),
@@ -140,7 +148,7 @@ export function buildSwatches(){
     }
     const s=document.createElement("button"); s.className="sw"+(c.toUpperCase()===state.color?" sel":"");
     s.style.background=c; s.dataset.c=c.toUpperCase(); s.title=isCustom?(c+" — clic droit pour retirer"):c;
-    s.addEventListener("click",()=>setColor(c));
+    s.addEventListener("click",e=>{ if(e.altKey) setColor2(c); else setColor(c); });
     if(isCustom) s.addEventListener("contextmenu",e=>{ e.preventDefault(); state.customColors=state.customColors.filter(x=>x.toUpperCase()!==c.toUpperCase()); buildSwatches(); });
     swatches.appendChild(s);
   });
@@ -150,6 +158,14 @@ function mixHex(hex,target,t){ const [r,g,b]=hexToRgb(hex),[tr,tg,tb]=hexToRgb(t
   const m=(a,b)=>Math.round(a+(b-a)*t);
   return "#"+[m(r,tr),m(g,tg),m(b,tb)].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); }
 const lighter=h=>mixHex(h,"#FFFFFF",0.35), darker=h=>mixHex(h,"#000000",0.35);
+export function setColor2(c){
+  state.color2=c.toUpperCase();
+  document.getElementById("curChip2").style.background=state.color2;
+}
+document.getElementById("curChip2").onclick=e=>{ e.stopPropagation(); closeMenus();
+  if(colorPop.hidden) openColorPicker(document.getElementById("curChip2"), state.color2, hex=>setColor2(hex)); else closeColorPop(); };
+document.getElementById("swapColors").onclick=()=>swapColors();
+export function swapColors(){ const a=state.color; setColor(state.color2); setColor2(a); }
 export function setColor(c){
   state.color=c.toUpperCase();
   [...swatches.children].forEach(el=>el.classList.toggle("sel",el.dataset.c===state.color));
@@ -228,7 +244,7 @@ document.getElementById("addColorBtn").onclick=e=>{ e.stopPropagation(); closeMe
 const curChip=document.getElementById("curChip");
 curChip.onclick=e=>{ e.stopPropagation(); closeMenus();
   if(colorPop.hidden) openColorPicker(curChip, state.color, hex=>setColor(hex)); else closeColorPop(); };
-document.addEventListener("click",e=>{ if(!colorPop.hidden && !colorPop.contains(e.target) && e.target.id!=="addColorBtn" && e.target.id!=="curChip" && !e.target.classList.contains("fxsw")) closeColorPop(); });
+document.addEventListener("click",e=>{ if(!colorPop.hidden && !colorPop.contains(e.target) && e.target.id!=="addColorBtn" && e.target.id!=="curChip" && e.target.id!=="curChip2" && !e.target.classList.contains("fxsw")) closeColorPop(); });
 
 // ---------- Options du calque & effets ----------
 // Les effets sont pré-appliqués en direct sur le dessin pendant qu'on règle les paramètres,

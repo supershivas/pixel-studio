@@ -3,7 +3,7 @@ import { layerAt, setLayerAt, inBounds, hexToRgb, render } from "./helpers.js";
 import { snapshot } from "./history.js";
 import { buildLayers, openColorPicker, setTool } from "./ui.js";
 import { setHint } from "./interaction.js";
-import { mirrorPoints, collectRegion } from "./drawing.js";
+import { mirrorPoints, collectRegion, wrapCell } from "./drawing.js";
 import { BAYER4, BAYER8 } from "./dither.js";
 import { lockColor } from "./palettes.js";
 
@@ -33,8 +33,8 @@ export function stampPattern(x,y,L){
   const on=patternOn(), half=Math.floor((state.brush-1)/2);
   for(const [px,py] of mirrorPoints(x,y))
     for(let dy=-half;dy<state.brush-half;dy++) for(let dx=-half;dx<state.brush-half;dx++){
-      const nx=px+dx, ny=py+dy; if(!inBounds(nx,ny)) continue;
-      const c=patternColor(on,nx,ny); if(c!==undefined) setLayerAt(L,nx,ny,c);
+      const cell=wrapCell(px+dx,py+dy); if(!cell) continue;
+      const c=patternColor(on,cell[0],cell[1]); if(c!==undefined) setLayerAt(L,cell[0],cell[1],c);
     }
 }
 // remplissage tramé : la zone du pot de peinture (tolérance / contiguïté comprises) reçoit le motif

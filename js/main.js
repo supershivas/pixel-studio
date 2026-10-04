@@ -12,6 +12,7 @@ import "./update.js";
 import "./patterns.js";
 import "./stamps.js";
 import "./palettes.js";
+import "./tile.js";
 
 // ---------- Init ----------
 loadPrefs();

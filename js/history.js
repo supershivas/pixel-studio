@@ -20,7 +20,7 @@ function liveSnap(){
   const snap={ active: state.active, W: state.W, H: state.H, guides: state.guides, layers: state.layers.map(cloneLayer) };
   if(state.frames && state.frames.length){
     snap.activeFrame=state.activeFrame;
-    snap.frames=state.frames.map((f,i)=>({ id:f.id, name:f.name, active:f.active, layers:i===state.activeFrame?null:f.layers }));
+    snap.frames=state.frames.map((f,i)=>({ id:f.id, name:f.name, active:f.active, delay:f.delay||null, layers:i===state.activeFrame?null:f.layers }));
   }
   return snap;
 }
@@ -61,7 +61,7 @@ export function restore(snap){
   state.active = Math.min(snap.active, snap.layers.length-1);
   state.layers = snap.layers.map(cloneLayer);
   if(resized && snap.frames){      // changement de taille : toutes les frames reprennent leur ancienne taille
-    state.frames = snap.frames.map((f,i)=>({ id:f.id, name:f.name, active:f.active,
+    state.frames = snap.frames.map((f,i)=>({ id:f.id, name:f.name, active:f.active, delay:f.delay||null,
       layers:i===snap.activeFrame ? state.layers.map(cloneLayer) : f.layers.map(cloneLayer) }));
     state.activeFrame = snap.activeFrame;
   }

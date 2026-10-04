@@ -17,12 +17,18 @@ export function mirrorPoints(x,y){
   if(state.mirror==="xy") pts.push([state.W-1-x,state.H-1-y]);
   return pts;
 }
-export function stamp(x,y,col,L){ // brush square, mirror-aware ; L = calque cible (décalage géré)
+// Dessin en boucle : une cellule hors du canevas ressort de l'autre côté (null si hors canevas sans boucle)
+export function wrapCell(x,y){
+  if(state.wrap==="x"||state.wrap==="xy") x=((x%state.W)+state.W)%state.W;
+  if(state.wrap==="y"||state.wrap==="xy") y=((y%state.H)+state.H)%state.H;
+  return inBounds(x,y) ? [x,y] : null;
+}
+export function stamp(x,y,col,L){ // brush square, mirror-aware, boucle-aware ; L = calque cible (décalage géré)
   const half=Math.floor((state.brush-1)/2);
   for(const [px,py] of mirrorPoints(x,y))
     for(let dy=-half;dy<state.brush-half;dy++) for(let dx=-half;dx<state.brush-half;dx++){
-      const nx=px+dx, ny=py+dy;
-      if(inBounds(nx,ny)) setLayerAt(L,nx,ny,col); // col null => efface
+      const c=wrapCell(px+dx,py+dy);
+      if(c) setLayerAt(L,c[0],c[1],col); // col null => efface
     }
 }
 export function line(x0,y0,x1,y1,cb){

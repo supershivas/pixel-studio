@@ -59,6 +59,7 @@ const TOOL_OPT_GROUPS={
   optFill:      new Set(["shape"]),
   optStroke:    new Set(["shape"]),
   optMirror:    new Set(["pencil","eraser","shape","dither"]),
+  optWrap:      new Set(["pencil","eraser","dither","stamp"]),
   optWand:      new Set(["wand"]),
   optCrop:      new Set(["crop"]),
   textOpts:     new Set(["text"]),

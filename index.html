@@ -176,6 +176,13 @@
   input.txt::placeholder{color:var(--ink-dim)}
   .lock-badge{font:10px var(--mono);letter-spacing:.04em;text-transform:none;color:var(--accent);margin-right:auto;margin-left:8px}
   .fill{width:100%}
+  .floatpanel{position:fixed;right:268px;bottom:84px;width:236px;z-index:60;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);padding:0 0 10px}
+  .floatpanel header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);
+    font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .floatpanel canvas{display:block;width:calc(100% - 24px);margin:10px 12px 0;image-rendering:pixelated;border-radius:6px;border:1px solid var(--line);
+    background:conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/8px 8px}
+  .floatpanel .note{margin:8px 12px 0}
   .pal-strip{display:flex;flex-wrap:wrap;gap:2px;max-width:230px;justify-content:flex-end}
   .pal-strip i{width:14px;height:14px;border-radius:3px;border:1px solid var(--line);display:block}
   .grow{flex:1;min-width:0}
@@ -374,6 +381,7 @@
   .timeline{display:flex;align-items:center;gap:14px;padding:8px 16px;flex:0 0 auto;
     background:var(--panel);border-top:1px solid var(--line);overflow-x:auto}
   .timeline input[type=number]{width:48px}
+  .timeline #frameDelay{width:66px}
   .frames{display:flex;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;padding:2px 10px}
   .frame{position:relative;flex:0 0 auto;width:40px;height:56px;border-radius:5px;cursor:grab;
     border:2px solid var(--line);background:
@@ -384,6 +392,7 @@
   .frame.drop-before{box-shadow:inset 3px 0 0 var(--accent)}
   .frame.drop-after{box-shadow:inset -3px 0 0 var(--accent)}
   .fthumb{width:100%;height:100%;display:block;border-radius:3px;image-rendering:pixelated}
+  .fdelay{position:absolute;right:2px;bottom:2px;font:600 8px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8)}
   .fnum{position:absolute;left:3px;bottom:2px;font:600 9px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8)}
   .fdel{position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;padding:0;
     line-height:1;font-size:11px;background:var(--danger);border-color:var(--danger);color:#fff;display:none}
@@ -487,6 +496,7 @@
         <div class="menu-sep"></div>
         <label class="menu-check"><input type="checkbox" id="gridToggle" checked> Grille</label>
         <label class="menu-check"><input type="checkbox" id="guideToggle" checked> Repères de coupe</label>
+        <label class="menu-check"><input type="checkbox" id="tileToggle"> Aperçu en mosaïque</label>
       </div>
     </div>
     <div class="menu-root">
@@ -579,6 +589,10 @@
   <div class="row" id="optStamp">Tampon <div class="shapekind-picker" id="stampPicker"></div>
     <button class="mini" id="stampDelete" title="Supprimer ce tampon">Supprimer</button>
     <span class="empty" id="stampEmpty">Aucun tampon — sélectionne une zone puis Édition › Enregistrer la sélection comme tampon</span></div>
+  <div class="row" id="optWrap">Boucle
+    <select id="wrapMode" title="Le dessin qui sort d'un bord réapparaît de l'autre côté (motifs répétables)">
+      <option value="none">Aucune</option><option value="x">Horizontale</option><option value="y">Verticale</option><option value="xy">Les deux</option>
+    </select></div>
   <label class="check" id="optWand"><input type="checkbox" id="wandContiguous" checked> Pixels contigus uniquement</label>
   <div class="row" id="optCrop">
     X <input type="number" id="cropX" min="0" style="width:56px">
@@ -664,6 +678,8 @@
   <div class="row" style="width:auto;gap:6px"><span style="font-size:11px;color:var(--ink-dim)">IPS</span>
     <input type="number" id="fps" min="1" max="30" value="6"></div>
   <label class="check"><input type="checkbox" id="onionSkin"> Pelure d'oignon</label>
+  <label class="field" title="Durée d'affichage de la frame active (vide = automatique, selon les IPS)">Durée <input type="number" id="frameDelay" min="20" max="10000" step="10"> ms</label>
+  <button class="mini" id="frameDelayAll" title="Appliquer cette durée à toutes les frames">Toutes</button>
   <div class="frames" id="frames"></div>
   <button class="mini" id="addFrameBtn" title="Ajouter une frame (duplique la frame courante)">+ Frame</button>
   <span id="frameCount" class="note" style="margin:0 0 0 auto"></span>
@@ -810,6 +826,12 @@
       <p class="note" id="homeEmptyNote" hidden>Aucun projet récent pour l'instant — enregistre ou ferme un projet pour le retrouver ici.</p>
     </div>
   </div>
+</div>
+
+<div class="floatpanel" id="tilePanel" hidden role="dialog" aria-label="Aperçu en mosaïque">
+  <header><span>Mosaïque</span><button class="modal-x" id="tileClose" title="Fermer" aria-label="Fermer">×</button></header>
+  <canvas id="tileCv"></canvas>
+  <p class="note">L'image répétée 3×3 — le motif central est le vrai. Pour dessiner en boucle, règle « Boucle » dans les options du crayon.</p>
 </div>
 
 <div class="modal-backdrop" id="paletteLibModal">

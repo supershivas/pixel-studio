@@ -3,6 +3,7 @@ import { selectionData, transformSelection, setLayerAt, inBounds, render } from 
 import { snapshot } from "./history.js";
 import { setTool, buildLayers } from "./ui.js";
 import { setHint } from "./interaction.js";
+import { wrapCell } from "./drawing.js";
 import { showToast } from "./toast.js";
 
 // ---------- Transformer la sélection (menu Édition) ----------
@@ -58,7 +59,8 @@ $("miSaveStamp").onclick=()=>{
 export function stampCells(x,y){
   const st=state.stamps[state.stampIdx]; if(!st) return null;
   const ox=x-Math.floor(st.w/2), oy=y-Math.floor(st.h/2), out=[];
-  for(let j=0;j<st.h;j++) for(let i=0;i<st.w;i++){ const c=st.data[j*st.w+i]; if(c!==null && inBounds(ox+i,oy+j)) out.push([ox+i,oy+j,c]); }
+  for(let j=0;j<st.h;j++) for(let i=0;i<st.w;i++){ const c=st.data[j*st.w+i]; if(c===null) continue;
+    const cell=wrapCell(ox+i,oy+j); if(cell) out.push([cell[0],cell[1],c]); }
   return out;
 }
 export function stampPlace(x,y){

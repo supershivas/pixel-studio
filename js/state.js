@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.13.0";
+export const APP_VERSION = "1.14.0";
 
 // ---------- Palette de base ----------
 // Ordre d'affichage (grille de 6 colonnes) : neutres (blanc, noir, [transparent ajouté par l'UI],
@@ -59,6 +59,7 @@ export const state = {
   fillTol: 0, fillContig: true,                 // pot de peinture : tolérance (%) et contiguïté
   pixelPerfect: false,                          // crayon : supprime les coins en L
   gradShape: "linear", gradStyle: "bayer4", gradSteps: 4, gradClear: false, gradPainted: false, gradDrag: null,
+  wrap: "none",                                 // dessin en boucle sur les bords : none | x | y | xy
   ditherPattern: "checker", ditherBg: "clear", ditherMode: "brush",
 
   textAnchor: {x:0,y:0}, textEditing: false, caretOn: true,

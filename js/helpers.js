@@ -274,6 +274,7 @@ export function render(){
   drawGrid();
   drawTransform();
   document.getElementById("zoomLabel").textContent=Math.round(state.zoom*100)+"%";
+  if(state.afterRender) state.afterRender();
   if(state.thumbsDirty){ refreshThumbs(); state.thumbsDirty=false; }
 }
 

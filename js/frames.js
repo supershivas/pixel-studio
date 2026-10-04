@@ -45,7 +45,7 @@ export function duplicateFrame(i){
   stopPlayback();
   syncCurrentFrame();
   const src=state.frames[i];
-  const f={id:state.frameSeq++, name:String(state.frames.length+1), layers:cloneLayers(src.layers), active:src.active};
+  const f={id:state.frameSeq++, name:String(state.frames.length+1), layers:cloneLayers(src.layers), active:src.active, delay:src.delay||null};
   state.frames.splice(i+1,0,f);
   state.activeFrame=i+1;
   loadFrame(state.activeFrame);
@@ -71,14 +71,20 @@ export function transformAllFrames(applyFn){
 
 // ---------- Lecture ----------
 let playTimer=null;
-function stopPlayback(){ if(playTimer){ clearInterval(playTimer); playTimer=null; } state.playing=false; if(playBtn) playBtn.textContent="▶"; }
+function stopPlayback(){ if(playTimer){ clearTimeout(playTimer); playTimer=null; } state.playing=false; if(playBtn) playBtn.textContent="▶"; }
+// durée d'affichage d'une frame : la sienne si elle en a une, sinon 1/IPS
+export const frameDelayMs=f=>f && f.delay ? f.delay : Math.round(1000/Math.max(1,state.fps));
 function startPlayback(){
   if(state.frames.length<2) return;
   state.playing=true; if(playBtn) playBtn.textContent="⏸";
-  playTimer=setInterval(()=>{
-    const ni=(state.activeFrame+1)%state.frames.length;
-    switchFrame(ni);
-  }, Math.max(30,1000/Math.max(1,state.fps)));
+  const tick=()=>{
+    playTimer=setTimeout(()=>{
+      if(!state.playing) return;
+      switchFrame((state.activeFrame+1)%state.frames.length);
+      tick();
+    }, Math.max(20,frameDelayMs(state.frames[state.activeFrame])));
+  };
+  tick();
 }
 function togglePlay(){ state.playing ? stopPlayback() : startPlayback(); }
 
@@ -110,6 +116,7 @@ function frameThumb(f,i){
   dup.addEventListener("click",e=>{ e.stopPropagation(); duplicateFrame(i); });
   const del=document.createElement("button"); del.className="fdel"; del.textContent="×"; del.title="Supprimer la frame";
   del.addEventListener("click",e=>{ e.stopPropagation(); deleteFrame(i); });
+  if(f.delay){ const dl=document.createElement("span"); dl.className="fdelay"; dl.textContent=f.delay+" ms"; el.appendChild(dl); }
   el.append(cv,num,dup,del);
   el.addEventListener("click",()=>switchFrame(i));
   el.addEventListener("dragstart",e=>{ dragFrameId=f.id; e.dataTransfer.effectAllowed="move"; el.classList.add("dragging"); });
@@ -127,6 +134,7 @@ export function buildFrames(){
   framesEl.innerHTML="";
   state.frames.forEach((f,i)=>framesEl.appendChild(frameThumb(f,i)));
   if(frameCountEl) frameCountEl.textContent=state.frames.length+" frame"+(state.frames.length>1?"s":"");
+  syncDelayInput();
 }
 // dépose dans l'espace vide après la dernière frame => déplacer en toute fin
 if(framesEl){
@@ -135,6 +143,21 @@ if(framesEl){
     clearFrameDropMarks(); moveFrame(dragFrameId,null,null); dragFrameId=null; });
 }
 
+// durée par frame : champ « Durée » de la barre d'animation (vide = automatique, selon les IPS)
+const delayInput=document.getElementById("frameDelay");
+function syncDelayInput(){ const f=state.frames[state.activeFrame];
+  if(delayInput && document.activeElement!==delayInput) delayInput.value=f && f.delay ? f.delay : ""; }
+if(delayInput){
+  delayInput.placeholder="auto";
+  delayInput.addEventListener("input",()=>{ const f=state.frames[state.activeFrame]; if(!f) return;
+    const v=Math.round(+delayInput.value); f.delay = v>0 ? Math.max(20,Math.min(10000,v)) : null; refreshDelayBadges(); });
+  delayInput.addEventListener("keydown",e=>e.stopPropagation());
+  delayInput.addEventListener("blur",syncDelayInput);
+}
+function refreshDelayBadges(){ framesEl?.querySelectorAll(".frame").forEach((el,i)=>{ const f=state.frames[i]; let b=el.querySelector(".fdelay");
+  if(f && f.delay){ if(!b){ b=document.createElement("span"); b.className="fdelay"; el.appendChild(b); } b.textContent=f.delay+" ms"; } else if(b) b.remove(); }); }
+document.getElementById("frameDelayAll")?.addEventListener("click",()=>{ const f=state.frames[state.activeFrame]; if(!f) return;
+  state.frames.forEach(x=>x.delay=f.delay||null); refreshDelayBadges(); });
 if(playBtn) playBtn.addEventListener("click",togglePlay);
 if(fpsInput) fpsInput.addEventListener("change",()=>{ state.fps=Math.max(1,Math.min(30,+fpsInput.value||6));
   if(state.playing){ stopPlayback(); startPlayback(); } });
@@ -144,11 +167,11 @@ document.getElementById("addFrameBtn")?.addEventListener("click",addFrame);
 // ---------- Sauvegarde / chargement projet ----------
 export function framesSnapshotForSave(){
   syncCurrentFrame();
-  return { active:state.activeFrame, list: state.frames.map(f=>({ name:f.name, active:f.active, layers:encodeLayers(f.layers) })) };
+  return { active:state.activeFrame, list: state.frames.map(f=>({ name:f.name, active:f.active, delay:f.delay||null, layers:encodeLayers(f.layers) })) };
 }
 export function loadFramesFromSave(saved){
   if(saved && Array.isArray(saved.list) && saved.list.length){
-    state.frames=saved.list.map(f=>({ id:state.frameSeq++, name:f.name||"", active:f.active|0, layers:decodeLayers(f.layers) }));
+    state.frames=saved.list.map(f=>({ id:state.frameSeq++, name:f.name||"", active:f.active|0, delay:f.delay>0?f.delay|0:null, layers:decodeLayers(f.layers) }));
     state.activeFrame=Math.max(0,Math.min(saved.active|0,state.frames.length-1));
     const f=state.frames[state.activeFrame];
     state.layers=cloneLayers(f.layers); state.active=Math.min(f.active||0,state.layers.length-1);

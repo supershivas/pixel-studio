@@ -6,6 +6,8 @@ import { setHint, fitZoom } from "./interaction.js";
 import { buildLayers, buildSwatches, presetSel, PRESETS, setProjectName, openColorPicker, commitCanvasText } from "./ui.js";
 import { showToast } from "./toast.js";
 import { framesSnapshotForSave, loadFramesFromSave } from "./frames.js";
+import { crc32, encodeGIF, encodeAPNG } from "./anim.js";
+import { medianCutPalette } from "./drawing.js";
 
 // ---------- Export ----------
 // bg : couleur de fond (hex) ou null/false pour un rendu transparent
@@ -47,14 +49,16 @@ function safeName(s){ return (s||"").trim().replace(/[^\w\-]+/g,"-").replace(/^-
 // ---------- Modale d'export (Fichier › Exporter…) ----------
 // Tous les formats au même endroit ; les réglages (format, échelle, fond…) peuvent être
 // enregistrés sous un nom et rappelés plus tard (localStorage, sur cet appareil).
-const EXPORT_MAX_SIDE=16384;                  // limite de taille de canevas des navigateurs
+const EXPORT_MAX_SIDE=16384, EXPORT_ANIM_MAX=2048;                  // limite de taille de canevas des navigateurs
 const QUICK_SCALES=[1,2,4,8,16];
 const EXPORT_PRESETS_KEY="eupix.exportPresets", EXPORT_LAST_KEY="eupix.exportLast";
 const FORMATS={
   png:    {label:"PNG",             ext:"png", scale:true,  bg:"opt",   hint:"Image raster, fond transparent possible"},
   jpg:    {label:"JPG",             ext:"jpg", scale:true,  bg:"force", quality:true, hint:"Photo compressée, toujours sur fond plein"},
   svg:    {label:"SVG",             ext:"svg", scale:true,  bg:"opt",   hint:"Vectoriel, net à toutes les tailles (impression)"},
-  sprites:{label:"Planche de sprites", ext:"png", scale:true, bg:"opt", cols:true, hint:"Toutes les frames de l'animation en grille"},
+  sprites:{label:"Planche de sprites", ext:"png", scale:true, bg:"opt", cols:true, frames:true, hint:"Toutes les frames de l'animation en grille"},
+  gif:    {label:"GIF animé",       ext:"gif", scale:true,  bg:"opt",   frames:true, hint:"Animation, durées par frame respectées (256 couleurs max)"},
+  apng:   {label:"APNG animé",      ext:"png", scale:true,  bg:"opt",   frames:true, hint:"Animation PNG sans perte, transparence complète"},
   ascii:  {label:"ASCII art",       ext:"txt", hint:"Niveaux de gris en caractères"},
   grid:   {label:"Grille de couleurs", ext:"txt", hint:"Une valeur hexa par pixel"},
   palette:{label:"Palette",         ext:"json", hint:"Couleurs ajoutées au projet, réimportables"},
@@ -143,7 +147,8 @@ function refreshExportModal(){
     msg=d.w+" × "+d.h+" px"+(exportBg()?"":" · transparent");
     if(exFormat==="sprites") msg+=" · "+d.g.n+" frame"+(d.g.n>1?"s":"")+" en "+d.g.cols+"×"+d.g.rows;
     if(exFormat!=="svg" && (d.w>EXPORT_MAX_SIDE||d.h>EXPORT_MAX_SIDE)) err=`Trop grand : les navigateurs ne dépassent pas ${EXPORT_MAX_SIDE} px de côté. Réduis l'échelle.`;
-    if(exFormat==="sprites" && state.frames.length<2) err="Il faut au moins 2 frames pour une planche de sprites.";
+    if(f.frames && state.frames.length<2) err="Il faut au moins 2 frames pour exporter une animation ou une planche.";
+    if((exFormat==="gif"||exFormat==="apng") && !err && (d.w>EXPORT_ANIM_MAX||d.h>EXPORT_ANIM_MAX)) err=`Trop grand pour une animation (${EXPORT_ANIM_MAX} px de côté maximum). Réduis l'échelle.`;
   } else if(exFormat==="palette"){
     msg=state.customColors.length+" couleur"+(state.customColors.length>1?"s":"");
     if(!state.customColors.length) err="Aucune couleur personnalisée à exporter.";
@@ -168,11 +173,12 @@ function exportFileName(sc){
   const base=safeName($("exName").value)||safeName(state.projectName);
   const f=FORMATS[exFormat];
   const suffix= exFormat==="sprites" ? `_sprites_${state.frames.length}f_x${sc}`
+    : (exFormat==="gif"||exFormat==="apng") ? `_anim_${state.frames.length}f_x${sc}`
     : (exFormat==="png"||exFormat==="jpg") ? `_x${sc}`
     : exFormat==="ascii" ? ".ascii" : exFormat==="grid" ? ".grid" : exFormat==="svg" ? `_x${sc}` : "";
   return base+suffix+"."+f.ext;
 }
-function doExport(){
+async function doExport(){
   if($("exOk").disabled) return;
   const f=FORMATS[exFormat], sc=exScale(), bg=exportBg(), file=exportFileName(sc);
   const st=currentExportSettings();
@@ -200,6 +206,28 @@ function doExport(){
     });
     download(sheet.toDataURL("image/png"),file);
     showToast(`Planche de sprites exportée (${g.cols}×${g.rows}, ${frames.length} frames).`,{type:"success"});
+  } else if(exFormat==="gif" || exFormat==="apng"){
+    const busy=$("busy"); busy.hidden=false; busy.textContent="Encodage de l'animation…"; document.body.style.cursor="progress";
+    try{
+      await new Promise(r=>setTimeout(r,30));            // laisse l'indicateur s'afficher
+      const list=state.frames.map((fr,i)=>({ layers:i===state.activeFrame?state.layers:fr.layers,
+        delay:fr.delay||Math.round(1000/Math.max(1,state.fps)) }));
+      let blob;
+      if(exFormat==="gif"){
+        const bgRgb=bg?[parseInt(bg.slice(1,3),16),parseInt(bg.slice(3,5),16),parseInt(bg.slice(5,7),16)]:null;
+        const frames=list.map(fr=>({rgba:compositeLayers(fr.layers).data, delay:fr.delay}));
+        const quantize=(cols,n)=>{ const rgb=new Float32Array(cols.length*3); cols.forEach((c,i)=>rgb.set(c,i*3));
+          return medianCutPalette({rgb,ok:new Uint8Array(cols.length).fill(1)},n); };
+        blob=new Blob([encodeGIF(frames,{w:state.W,h:state.H,scale:sc,bg:bgRgb,quantize})],{type:"image/gif"});
+      } else {
+        const frames=list.map(fr=>{ const cv=flattenCanvas(fr.layers,sc,bg);
+          return {rgba:cv.getContext("2d").getImageData(0,0,cv.width,cv.height).data, delay:fr.delay}; });
+        blob=await encodeAPNG(frames,state.W*sc,state.H*sc);
+      }
+      const url=URL.createObjectURL(blob); download(url,file); setTimeout(()=>URL.revokeObjectURL(url),8000);
+      showToast(`${exFormat==="gif"?"GIF":"APNG"} exporté (${state.frames.length} frames, ${state.W*sc} × ${state.H*sc} px).`,{type:"success"});
+    }catch(err){ showToast("Export impossible : "+err.message,{type:"error"}); }
+    finally{ busy.hidden=true; busy.textContent="Export en cours…"; document.body.style.cursor=""; }
   } else if(exFormat==="ascii"){
     download("data:text/plain;charset=utf-8,"+encodeURIComponent(asciiArt()),file);
     showToast("ASCII art exporté.",{type:"success"});
@@ -273,8 +301,6 @@ function colorGrid(){
 }
 
 // ---------- Export groupé (ZIP store, sans dépendance) ----------
-const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
-function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c=CRC_TABLE[(c^u8[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
 function zipStore(files){
   const enc=new TextEncoder();
   const u16=v=>[v&0xFF,(v>>8)&0xFF];
@@ -339,7 +365,7 @@ document.getElementById("batchFiles").onchange=async e=>{
 // ---------- Projet .eu-pix ----------
 export function buildProjectObject(){
   if(state.activeShape) bakeShape();
-  return { format:"pixel", version:6, name:state.projectName, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
+  return { format:"pixel", version:7, name:state.projectName, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
     layers:encodeLayers(state.layers), frames:framesSnapshotForSave() };
 }
 export function saveProjectFile(){

@@ -182,7 +182,7 @@ export function deleteSelection(){ if(state.floatSel){ state.floatSel=null; stat
     for(let j=0;j<h;j++) for(let i=0;i<w;i++) setLayerAt(L,x+i,y+j,null); state.thumbsDirty=true; buildLayers(); render(); } }
 export function pasteClipboard(){ if(!state.clipboard) return; commitFloat();
   // la copie arrive dans un nouveau calque, juste au-dessus du calque actif
-  snapshot();
+  snapshot("Collage");
   const cur=state.layers[state.active], nl=newLayer("Collage");
   if(cur) nl.groupId=cur.groupId||null;
   state.layers.splice(state.active+1,0,nl); state.active++;
@@ -274,7 +274,7 @@ export function render(){
   drawGrid();
   drawTransform();
   document.getElementById("zoomLabel").textContent=Math.round(state.zoom*100)+"%";
-  if(state.afterRender) state.afterRender();
+  for(const fn of state.renderHooks) fn();
   if(state.thumbsDirty){ refreshThumbs(); state.thumbsDirty=false; }
 }
 
@@ -296,7 +296,18 @@ export function drawGrid(){
     octx.strokeStyle="#fff"; octx.lineDashOffset=4; octx.strokeRect(sr.x*state.zoom+.5, sr.y*state.zoom+.5, sr.w*state.zoom-1, sr.h*state.zoom-1);
     octx.restore(); }
   drawCropOverlay();
+  drawRulerGuides();
   drawLassoPath();
+}
+
+// repères manuels posés depuis les règles (traits cyan fins, sur les bords de cellules)
+function drawRulerGuides(){
+  if(!state.rulersOn || !state.rulerGuides.length) return;
+  const z=state.zoom; octx.save(); octx.strokeStyle="rgba(0,229,255,.9)"; octx.lineWidth=1; octx.beginPath();
+  for(const g of state.rulerGuides){
+    if(g.axis==="x"){ octx.moveTo(g.pos*z+.5,0); octx.lineTo(g.pos*z+.5,overlay.height); }
+    else { octx.moveTo(0,g.pos*z+.5); octx.lineTo(overlay.width,g.pos*z+.5); } }
+  octx.stroke(); octx.restore();
 }
 
 // tracé du lasso en cours (le contour se ferme tout seul au relâchement)

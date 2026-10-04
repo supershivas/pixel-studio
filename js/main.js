@@ -13,6 +13,9 @@ import "./patterns.js";
 import "./stamps.js";
 import "./palettes.js";
 import "./tile.js";
+import "./rulers.js";
+import "./historyPanel.js";
+import "./files.js";
 
 // ---------- Init ----------
 loadPrefs();

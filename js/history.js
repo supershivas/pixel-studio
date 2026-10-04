@@ -16,8 +16,10 @@ const cloneLayer = L => ({...L, data:L.data?L.data.slice():null,
 // Un instantané porte aussi les dimensions du canevas (W×H) et les calques des autres frames
 // (par référence, sans copie : transformAllFrames les remplace avant de les modifier). C'est ce
 // qui permet d'annuler / rétablir un rognage, y compris sur une animation.
-function liveSnap(){
-  const snap={ active: state.active, W: state.W, H: state.H, guides: state.guides, layers: state.layers.map(cloneLayer) };
+const TOOL_LABELS={ move:"Déplacement", select:"Sélection", lasso:"Lasso", wand:"Baguette magique", crop:"Recadrage", pencil:"Crayon",
+  eraser:"Gomme", gradient:"Dégradé", dither:"Tramage", stamp:"Tampon", fill:"Pot de peinture", eyedropper:"Pipette", shape:"Forme", text:"Texte" };
+function liveSnap(label){
+  const snap={ label:label||TOOL_LABELS[state.tool]||"Modification", active: state.active, W: state.W, H: state.H, guides: state.guides, layers: state.layers.map(cloneLayer) };
   if(state.frames && state.frames.length){
     snap.activeFrame=state.activeFrame;
     snap.frames=state.frames.map((f,i)=>({ id:f.id, name:f.name, active:f.active, delay:f.delay||null, layers:i===state.activeFrame?null:f.layers }));
@@ -47,9 +49,12 @@ function sameAsLive(snap){
   return true;
 }
 
-export function snapshot(){
+// label : nom de l'action qui va suivre (par défaut : l'outil actif)
+export function snapshot(label){
   history.splice(state.histPtr+1);
-  history.push(liveSnap());
+  const snap=liveSnap(typeof label==="string"?label:undefined);
+  if(!history.length) snap.isInitial=true;                       // premier état du projet (sert au panneau d'historique)
+  history.push(snap);
   if(history.length>state.HIST_MAX) history.shift();
   state.histPtr = history.length-1;
   for(const fn of snapshotListeners) fn();
@@ -68,6 +73,7 @@ export function restore(snap){
   state.cropRect=null; state.activeShape=null; state.previewCells=null;
   if(resized) for(const fn of sizeListeners) fn();
   buildLayers(); render();
+  for(const fn of snapshotListeners) fn();       // autosave, vignettes de frames, panneau d'historique
 }
 export function undo(){
   if(state.histPtr<0) return;
@@ -82,6 +88,29 @@ export function undo(){
     return;
   }
   if(state.histPtr>0){ state.histPtr--; restore(history[state.histPtr]); }
+}
+// États affichables par le panneau d'historique. history[k] est l'état AVANT l'action k, donc l'état
+// obtenu après l'action k est history[k+1] (ou l'état courant, s'il n'est pas encore empilé). Le premier
+// instantané est dupliqué par celui de la première action : on masque le doublon.
+export function historyRows(){
+  const pending = state.histPtr>=0 && history[state.histPtr] && !sameAsLive(history[state.histPtr]);
+  const start = history.length>1 && history[0] && history[0].isInitial ? 1 : 0;
+  const rows=[];
+  for(let i=start;i<history.length;i++){
+    const label = i===start ? (history[0].isInitial ? "État initial" : "Plus ancien état") : (history[i-1].label||"Modification");
+    rows.push({ index:i, n:i-start, label, active:!pending && i===state.histPtr, future:i>state.histPtr });
+  }
+  if(pending) rows.push({ index:history.length, n:history.length-start, label:history[state.histPtr].label||"Modification", active:true, future:false, live:true });
+  return rows;
+}
+// revient (ou avance) jusqu'à l'état i de historyRows()
+export function jumpTo(i){
+  if(i>=history.length) return;                    // l'état courant : déjà là
+  let guard=history.length+4;
+  while(guard-- >0){
+    if(state.histPtr===i && sameAsLive(history[i])) return;
+    if(state.histPtr<i) redo(); else undo();
+  }
 }
 export function redo(){
   if(state.histPtr<history.length-1){ state.floatSel=null; state.sel=null;

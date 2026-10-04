@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pixel Studio</title>
 <meta name="theme-color" content="#0f1729">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
 <!-- Favicon : crayon pixel dessiné en SVG inline (data-URI) — pas de fichier binaire à versionner. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' rx='2' fill='%230f1729'/%3E%3Cg fill='%23ffcc00'%3E%3Crect x='10' y='2' width='2' height='2'/%3E%3Crect x='12' y='2' width='2' height='2'/%3E%3Crect x='8' y='4' width='2' height='2'/%3E%3Crect x='10' y='4' width='2' height='2'/%3E%3Crect x='12' y='4' width='2' height='2'/%3E%3Crect x='6' y='6' width='2' height='2'/%3E%3Crect x='8' y='6' width='2' height='2'/%3E%3Crect x='10' y='6' width='2' height='2'/%3E%3Crect x='4' y='8' width='2' height='2'/%3E%3Crect x='6' y='8' width='2' height='2'/%3E%3Crect x='8' y='8' width='2' height='2'/%3E%3Crect x='4' y='10' width='2' height='2'/%3E%3Crect x='6' y='10' width='2' height='2'/%3E%3C/g%3E%3Crect x='12' y='0' width='2' height='2' fill='%23ff2d95'/%3E%3Crect x='14' y='0' width='2' height='2' fill='%23ff2d95'/%3E%3Crect x='14' y='2' width='2' height='2' fill='%23ff2d95'/%3E%3Crect x='2' y='10' width='2' height='2' fill='%23f5e6d3'/%3E%3Crect x='2' y='12' width='2' height='2' fill='%23f5e6d3'/%3E%3C/svg%3E" type="image/svg+xml">
 <style>
@@ -183,6 +185,18 @@
   .floatpanel canvas{display:block;width:calc(100% - 24px);margin:10px 12px 0;image-rendering:pixelated;border-radius:6px;border:1px solid var(--line);
     background:conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/8px 8px}
   .floatpanel .note{margin:8px 12px 0}
+  .drop-hint{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:rgba(6,10,20,.72);pointer-events:none}
+  .drop-hint[hidden]{display:none}
+  .drop-hint div{padding:28px 40px;border:2px dashed var(--accent);border-radius:14px;color:var(--ink);font-size:15px;line-height:1.6;text-align:center;background:var(--panel)}
+  .floatpanel.hist{bottom:auto;top:110px;max-height:min(60vh,420px);display:flex;flex-direction:column}
+  .hlist{overflow-y:auto;padding:6px}
+  .hrow{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;border:1px solid transparent;
+    padding:6px 8px;border-radius:6px;font-size:12px;color:var(--ink)}
+  .hrow:hover{background:var(--panel-2)}
+  .hrow .hn{font:10px var(--mono);color:var(--ink-dim);min-width:22px}
+  .hrow.active{background:var(--accent-blue);color:#fff}
+  .hrow.active .hn{color:#fff}
+  .hrow.future{opacity:.45}
   .pal-strip{display:flex;flex-wrap:wrap;gap:2px;max-width:230px;justify-content:flex-end}
   .pal-strip i{width:14px;height:14px;border-radius:3px;border:1px solid var(--line);display:block}
   .grow{flex:1;min-width:0}
@@ -219,7 +233,14 @@
 
   .stage{flex:1;position:relative;overflow:auto;display:grid;place-items:center;background:
     radial-gradient(circle at 50% 40%, #16203a 0, #0d1424 70%);min-width:0}
-  .canvas-wrap{position:relative;box-shadow:0 10px 40px rgba(0,0,0,.5);image-rendering:pixelated}
+  .stage-wrap{flex:1;min-width:0;position:relative;display:flex}
+  .stage-wrap.rulers{padding:18px 0 0 18px}
+  .stage-wrap.rulers::before{content:"";position:absolute;left:0;top:0;width:18px;height:18px;background:var(--panel);border-right:1px solid var(--line);border-bottom:1px solid var(--line);z-index:3}
+  .ruler{position:absolute;z-index:2;background:var(--panel);display:block}
+  .ruler[hidden]{display:none}
+  .ruler-top{left:18px;top:0;right:0;height:18px;width:calc(100% - 18px);border-bottom:1px solid var(--line);cursor:s-resize}
+  .ruler-left{left:0;top:18px;bottom:0;width:18px;height:calc(100% - 18px);border-right:1px solid var(--line);cursor:e-resize}
+  .canvas-wrap{margin:32px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,.5);image-rendering:pixelated}
   .stage.grabready, .stage.grabready *{cursor:grab !important}
   .stage.panning, .stage.panning *{cursor:grabbing !important}
   #view{display:block;image-rendering:pixelated;cursor:crosshair;touch-action:none}
@@ -456,6 +477,7 @@
       <div class="menu" id="menu-edit">
         <button class="menu-item" id="miUndo" data-close>Annuler (Ctrl/⌘Z)</button>
         <button class="menu-item" id="miRedo" data-close>Rétablir (Ctrl/⌘⇧Z)</button>
+        <label class="menu-check"><input type="checkbox" id="historyToggle"> Panneau d'historique</label>
         <div class="menu-sep"></div>
         <button class="menu-item" id="miCopy" data-close>Copier</button>
         <button class="menu-item" id="miCut" data-close>Couper</button>
@@ -497,6 +519,8 @@
         <label class="menu-check"><input type="checkbox" id="gridToggle" checked> Grille</label>
         <label class="menu-check"><input type="checkbox" id="guideToggle" checked> Repères de coupe</label>
         <label class="menu-check"><input type="checkbox" id="tileToggle"> Aperçu en mosaïque</label>
+        <label class="menu-check"><input type="checkbox" id="rulersToggle"> Règles et repères</label>
+        <button class="menu-item" id="clearRulerGuides" data-close>Effacer les repères</button>
       </div>
     </div>
     <div class="menu-root">
@@ -617,6 +641,9 @@
 <main>
   <nav class="rail" id="rail" aria-label="Outils"></nav>
 
+  <div class="stage-wrap" id="stageWrap">
+  <canvas class="ruler ruler-top" id="rulerTop" hidden></canvas>
+  <canvas class="ruler ruler-left" id="rulerLeft" hidden></canvas>
   <section class="stage" id="stage">
     <div class="canvas-wrap" id="wrap">
       <canvas id="view"></canvas>
@@ -624,6 +651,7 @@
     </div>
     <div class="hint" id="hint">—</div>
   </section>
+  </div>
 
   <aside class="side">
     <div class="block">
@@ -826,6 +854,13 @@
       <p class="note" id="homeEmptyNote" hidden>Aucun projet récent pour l'instant — enregistre ou ferme un projet pour le retrouver ici.</p>
     </div>
   </div>
+</div>
+
+<div class="drop-hint" id="dropHint" hidden><div>Dépose une image pour l'importer en calque,<br>ou un fichier .pixel pour l'ouvrir</div></div>
+
+<div class="floatpanel hist" id="historyPanel" hidden role="dialog" aria-label="Historique">
+  <header><span>Historique</span><button class="modal-x" id="historyClose" title="Fermer" aria-label="Fermer">×</button></header>
+  <div class="hlist" id="historyList"></div>
 </div>
 
 <div class="floatpanel" id="tilePanel" hidden role="dialog" aria-label="Aperçu en mosaïque">

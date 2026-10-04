@@ -86,7 +86,7 @@ export function gradientApply(){
   const g=state.gradDrag; state.gradDrag=null; state.previewCells=null;
   if(!g || (g.x0===g.x1 && g.y0===g.y1)){ render(); return; }
   const L=state.layers[state.active], r=gradientRegion();
-  snapshot();
+  snapshot("Dégradé");
   for(let y=r.y;y<r.y+r.h;y++) for(let x=r.x;x<r.x+r.w;x++){
     if(state.gradPainted && layerAt(L,x,y)===null) continue;
     setLayerAt(L,x,y,gradientColor(g,x,y));
@@ -108,7 +108,7 @@ export function replaceColor(from,to,tolPct,scope){
       const c=layerAt(L,x,y); if(c===null||c===to) continue;
       if(hexDist(c,from)<=maxD) plan.push([L,x,y]); } }
   if(!plan.length) return 0;
-  snapshot();
+  snapshot("Remplacer une couleur");
   for(const [L,x,y] of plan){ setLayerAt(L,x,y,to); n++; }
   state.thumbsDirty=true; buildLayers(); render();
   return n;

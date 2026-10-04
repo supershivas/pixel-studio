@@ -5,6 +5,7 @@
 ## Structure
 
 - `index.html` — page et interface
+- `sw.js`, `manifest.webmanifest`, `icon.svg` — application installable et hors ligne (PWA)
 - `js/` — logique de l'application, en modules ES
   - `state.js` — état partagé, palette et références DOM
   - `helpers.js` — utilitaires calques, compositing, rendu
@@ -16,6 +17,10 @@
   - `palettes.js` — menu Palette : bibliothèque, extraction, verrouillage
   - `anim.js` — encodeurs GIF et APNG
   - `tile.js` — boucle sur les bords, aperçu en mosaïque
+  - `rulers.js` — règles et repères manuels
+  - `historyPanel.js` — panneau d'historique
+  - `files.js` — glisser-déposer et coller une image
+  - `update.js` — détection de mise à jour et service worker
   - `dither.js` — matrices de Bayer partagées
   - `ui.js` — outils, palette, sélecteur de couleur, calques, modales
   - `frames.js` — frames de l'animation

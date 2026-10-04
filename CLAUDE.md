@@ -13,6 +13,8 @@
   - `interaction.js` — pointeur, clavier, zoom, navigation
   - `ui.js` — outils, palette, calques, préférences, modales
   - `io.js` — export et projet `.eu-pix`
+  - `patterns.js` (dégradé, tramage, remplacer une couleur), `stamps.js` (sélection, tampons), `palettes.js`,
+    `anim.js` (GIF/APNG), `tile.js`, `rulers.js`, `historyPanel.js`, `files.js`, `update.js`, `dither.js`
   - `main.js` — point d'entrée
 
 ## Dev local

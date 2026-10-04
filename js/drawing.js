@@ -594,7 +594,7 @@ document.getElementById("pixelizeOk").onclick=()=>{
   const res=pixelizeData(pixelizeTarget,p);          // état final, calculé sur les réglages courants
   const L=pixelizeTarget, layer=pixelizePreview;
   removePixelizePreview();                            // on retire l'aperçu…
-  snapshot();                                         // …pour que l'annulation revienne à l'avant-modale
+  snapshot("Pixellisation");                          // …pour que l'annulation revienne à l'avant-modale
   const li=state.layers.indexOf(L);
   layer.data=res.data;
   state.layers.splice(li+1,0,layer); state.active=li+1;

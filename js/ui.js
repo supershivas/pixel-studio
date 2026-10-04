@@ -342,7 +342,7 @@ function fxCommit(){
   if(fxLayer && fxOrig && fxDirty){
     const after=layerSnap(fxLayer);
     applyLayerSnap(fxLayer,fxOrig);   // on revient à l'état d'origine…
-    snapshot();                       // …pour que l'annulation (Ctrl/⌘Z) y ramène…
+    snapshot("Effets du calque");     // …pour que l'annulation (Ctrl/⌘Z) y ramène…
     applyLayerSnap(fxLayer,after);    // …puis on repose le résultat des réglages
     state.thumbsDirty=true; buildLayers(); render();
   }
@@ -672,13 +672,17 @@ document.getElementById("flattenLayers").onclick=()=>{ if(state.activeShape) bak
   state.layers=rebuilt; state.active=state.layers.indexOf(flat); buildLayers(); render(); };
 // ---------- Import d'image (nouveau calque de référence) ----------
 document.getElementById("miImportImg").onclick=()=>document.getElementById("imgFile").click();
+// importe un fichier image comme calque (menu, glisser-déposer ou coller depuis le presse-papiers)
+export function importImageFile(f,fallbackName){
+  const rd=new FileReader();
+  rd.onload=()=>{ if(state.activeShape) bakeShape(); snapshot("Import d'image");
+    const L=newImageLayer(rd.result, (f.name||"").replace(/\.[^.]+$/,"").slice(0,20)||fallbackName||"Image");
+    state.layers.splice(state.active+1,0,L); state.active++; buildLayers(); render(); };
+  rd.readAsDataURL(f);
+}
 document.getElementById("imgFile").onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
-  const rd=new FileReader();
-  rd.onload=()=>{ if(state.activeShape) bakeShape(); snapshot();
-    const L=newImageLayer(rd.result, f.name.replace(/\.[^.]+$/,"").slice(0,20)||"Image");
-    state.layers.splice(state.active+1,0,L); state.active++; buildLayers(); render(); };
-  rd.readAsDataURL(f); e.target.value="";
+  importImageFile(f); e.target.value="";
 };
 
 
@@ -835,7 +839,7 @@ export function applyCrop(cx,cy,cw,ch){
   if(state.activeShape) bakeShape();
   if(state.textEditing) commitCanvasText();
   commitFloat(); state.sel=null;
-  snapshot();                                  // état d'avant : « Annuler » restaure l'ancien canevas
+  snapshot("Rognage");                         // état d'avant : « Annuler » restaure l'ancien canevas
   const cache=new Map();
   transformAllFrames(layers=>{
     layers.forEach(L=>{ if(!L.isGroup) bakeOffset(L); });
@@ -880,7 +884,7 @@ function transformCanvas(op){
   if(state.activeShape) bakeShape();
   if(state.textEditing) commitCanvasText();
   commitFloat(); state.sel=null;
-  snapshot();
+  snapshot("Rotation / miroir du canevas");
   const swap=(op==="cw"||op==="ccw");
   const oldW=state.W, oldH=state.H;
   const nW=swap?oldH:oldW, nH=swap?oldW:oldH;
@@ -978,7 +982,7 @@ export function newProject({name,w,h,guides,scale,bg}={}){
   state.activeShape=null; state.txOp=null; state.previewCells=null;
   state.sel=null; state.floatSel=null; state.cropRect=null;
   if(w&&h){ state.W=Math.max(8,Math.min(512,w|0)); state.H=Math.max(8,Math.min(512,h|0)); }
-  state.guides=guides||null;
+  state.guides=guides||null; state.rulerGuides=[];
   state.layerSeq=1;
   const bgLayer=newLayer("Fond");
   if(bg) bgLayer.data.fill(bg);

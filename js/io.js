@@ -365,7 +365,7 @@ document.getElementById("batchFiles").onchange=async e=>{
 // ---------- Projet .eu-pix ----------
 export function buildProjectObject(){
   if(state.activeShape) bakeShape();
-  return { format:"pixel", version:7, name:state.projectName, w:state.W, h:state.H, guides:state.guides, customColors:state.customColors, active:state.active,
+  return { format:"pixel", version:8, name:state.projectName, w:state.W, h:state.H, guides:state.guides, rulerGuides:state.rulerGuides, customColors:state.customColors, active:state.active,
     layers:encodeLayers(state.layers), frames:framesSnapshotForSave() };
 }
 export function saveProjectFile(){
@@ -454,6 +454,7 @@ export function loadProject(p){
   state.activeShape=null; state.txOp=null; state.previewCells=null;
   state.W=Math.max(8,Math.min(512,p.w|0)); state.H=Math.max(8,Math.min(512,p.h|0));
   state.guides=p.guides||null; state.layerSeq=1;
+  state.rulerGuides=Array.isArray(p.rulerGuides)?p.rulerGuides.filter(g=>g&&(g.axis==="x"||g.axis==="y")&&isFinite(g.pos)).map(g=>({axis:g.axis,pos:g.pos|0})):[];
   setProjectName(p.name);            // fichiers v5 et antérieurs : pas de nom, on retombe sur « Sans titre »
   if(Array.isArray(p.customColors)){ state.customColors=p.customColors.slice(); buildSwatches(); }
   let raw, act=0;

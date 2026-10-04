@@ -195,7 +195,7 @@ document.getElementById("zoomIn").onclick=()=>setZoom(state.zoom+1);
 document.getElementById("zoomOut").onclick=()=>setZoom(state.zoom-1);
 document.getElementById("zoomFit").onclick=fitZoom;
 export function fitZoom(){
-  const pad=48; const zw=(stage.clientWidth-pad)/state.W, zh=(stage.clientHeight-pad)/state.H;
+  const pad=80; const zw=(stage.clientWidth-pad)/state.W, zh=(stage.clientHeight-pad)/state.H;
   setZoom(Math.max(1,Math.floor(Math.min(zw,zh))));
 }
 // ---------- Navigation : pan + zoom centré curseur ----------
@@ -209,10 +209,18 @@ stage.addEventListener("pointerdown",e=>{ if(e.button===1 || (spaceHeld && e.but
 stage.addEventListener("pointermove",e=>{ if(!panning) return; stage.scrollLeft=panStart.sl-(e.clientX-panStart.x); stage.scrollTop=panStart.st-(e.clientY-panStart.y); });
 stage.addEventListener("pointerup",()=>{ if(panning){ panning=false; stage.classList.remove("panning"); } });
 stage.addEventListener("pointercancel",()=>{ panning=false; stage.classList.remove("panning"); });
+// Molette / pavé tactile : le défilement natif déplace le canevas (Maj = horizontal). Ctrl/⌘ + molette,
+// pincement du pavé tactile, ou la préférence « molette = zoom » zooment autour du curseur ; les
+// petits deltas d'un pavé tactile sont cumulés pour qu'un pincement ne saute pas de niveau à chaque événement.
+let wheelAcc=0;
 stage.addEventListener("wheel",e=>{ if(!prefs.wheelZoom && !e.ctrlKey && !e.metaKey) return; e.preventDefault();
+  wheelAcc+=e.deltaMode===1 ? e.deltaY*33 : e.deltaY;
+  const steps=Math.trunc(Math.abs(wheelAcc)/(Math.abs(e.deltaY)>=50?50:40));
+  if(!steps) return;
+  const dir=wheelAcc<0?1:-1; wheelAcc=0;
   const rect=view.getBoundingClientRect();
   const cx=(e.clientX-rect.left)/state.zoom, cy=(e.clientY-rect.top)/state.zoom;   // cellule sous le curseur
-  const old=state.zoom; setZoom(state.zoom+(e.deltaY<0?1:-1));
+  const old=state.zoom; setZoom(state.zoom+dir*Math.min(steps,3));
   if(state.zoom!==old){ const nr=view.getBoundingClientRect();
     stage.scrollLeft += (nr.left + cx*state.zoom) - e.clientX;
     stage.scrollTop  += (nr.top  + cy*state.zoom) - e.clientY; }
@@ -243,7 +251,7 @@ window.addEventListener("keydown",e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){ e.preventDefault(); redo(); return; }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="c"){ if(state.sel||state.floatSel){ e.preventDefault(); copySelection(); setHint("Copié"); } return; }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="x"){ if(state.sel||state.floatSel){ e.preventDefault(); cutSelection(); setHint("Coupé"); } return; }
-  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="v"){ if(state.clipboard){ e.preventDefault(); pasteClipboard(); } return; }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="v") return;   // géré par l'événement « paste » (files.js) : image du système ou presse-papiers interne
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="t"){ e.preventDefault(); enterLayerTransform(); return; }
   if(e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase()==="t"){ e.preventDefault(); enterLayerTransform(); return; }
   if((e.key==="Delete"||e.key==="Backspace") && (state.sel||state.floatSel)){ e.preventDefault(); deleteSelection(); return; }

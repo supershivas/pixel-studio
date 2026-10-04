@@ -19,6 +19,6 @@ function draw(){
   g.strokeStyle="rgba(255,204,0,.9)"; g.lineWidth=Math.max(1,W/50); g.strokeRect(W+.5,H+.5,W-1,H-1);   // le vrai motif
 }
 const schedule=()=>{ if(!raf) raf=requestAnimationFrame(draw); };
-function setOpen(on){ panel.hidden=!on; tog.checked=on; state.afterRender = on ? schedule : null; if(on) schedule(); }
+function setOpen(on){ panel.hidden=!on; tog.checked=on; state.renderHooks[on?"add":"delete"](schedule); if(on) schedule(); }
 tog.onchange=()=>setOpen(tog.checked);
 $("tileClose").onclick=()=>setOpen(false);

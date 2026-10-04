@@ -20,6 +20,10 @@ async function checkForUpdate(){
       actionLabel:"Recharger", onAction:()=>location.reload() });
   }catch(_){}                    // hors ligne ou fichier absent : on réessaiera plus tard
 }
+// App installable et utilisable hors ligne (service worker), uniquement sur le site déployé
+if(mine && mine!=="__BUILD__" && "serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js?b="+encodeURIComponent(mine)).catch(()=>{});
+}
 if(mine && mine!=="__BUILD__"){
   checkForUpdate();
   setInterval(checkForUpdate,CHECK_EVERY);

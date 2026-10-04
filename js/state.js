@@ -1,10 +1,14 @@
-export const APP_VERSION = "1.9.1";
+export const APP_VERSION = "1.10.0";
 
-// ---------- Palette : 16 teintes flashy, bleu + jaune UE inclus ----------
+// ---------- Palette de base ----------
+// Ordre d'affichage (grille de 6 colonnes) : neutres (blanc, noir, [transparent ajouté par l'UI],
+// puis gris, crème, nuit), puis une colonne par teinte — bleu, vert, jaune, orange, rouge, violet —
+// en trois lignes clair / franc / foncé. Bleu #003399 et jaune #FFCC00 : couleurs UE.
 export const PALETTE = [
-  "#003399","#FFCC00","#FF2D95","#FF1744","#FF6B00","#A6FF00",
-  "#00E676","#00E5FF","#2979FF","#9D4EDD","#E000FF","#FFE500",
-  "#FFFFFF","#141428","#7A8AA8","#F5E6D3"
+  "#FFFFFF","#000000","#7A8AA8","#F5E6D3","#141428",
+  "#7FB2FF","#69F0AE","#FFF176","#FFA94D","#FF6B81","#C084FC",
+  "#2979FF","#00E676","#FFCC00","#FF6B00","#FF1744","#9D4EDD",
+  "#003399","#00A152","#C79A00","#B84A00","#A30D2D","#5B21B6"
 ];
 
 // ---------- État ----------
@@ -48,6 +52,7 @@ export const state = {
 
   previewCells: null, // Map "x,y"->color for in-progress shape
   sel: null, floatSel: null, clipboard: null, selDrag: null,   // sélection rectangulaire / presse-papiers
+  lasso: null,         // points [x,y] du tracé en cours de l'outil Lasso
   cropRect: null,      // {x,y,w,h} en cours de définition avec l'outil Recadrer
   wandContiguous: true,
 

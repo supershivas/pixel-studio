@@ -126,14 +126,18 @@ export function selectSimilar(x0,y0,contiguous,additive){
   } else {
     for(let y=0;y<state.H;y++) for(let x=0;x<state.W;x++){ if(layerAt(L,x,y)===target) cells.push([x,y]); }
   }
-  if(!cells.length) return;
-  snapshot();
-  for(const [cx,cy] of cells) setLayerAt(L,cx,cy,null);
-
-  // coordonnées absolues du canevas -> couleur, en fusionnant avec la sélection flottante
-  // existante si on ajoute (Maj) à une sélection déjà en cours
+  floatFromCells(L,cells,additive);
+}
+// Soulève les pixels non vides de `cells` du calque L en sélection flottante (déplaçable) ; avec
+// `additive`, ils s'ajoutent à la sélection flottante déjà en cours. Commun à la baguette et au lasso.
+function floatFromCells(L,cells,additive){
   const abs=new Map();
-  for(const [cx,cy] of cells) abs.set(cx+","+cy,target);
+  for(const [cx,cy] of cells){ const c=layerAt(L,cx,cy); if(c!==null) abs.set(cx+","+cy,c); }
+  if(!abs.size){ setHint("Aucun pixel dans la zone"); return false; }
+  snapshot();
+  for(const k of abs.keys()){ const [ax,ay]=k.split(",").map(Number); setLayerAt(L,ax,ay,null); }
+  // fusion avec la sélection flottante existante si on ajoute (Maj) à une sélection déjà en cours
+  const picked=abs.size;
   if(additive && state.floatSel){
     const f=state.floatSel;
     for(let j=0;j<f.h;j++) for(let i=0;i<f.w;i++){ const c=f.data[j*f.w+i]; if(c===null) continue; abs.set((f.x+i)+","+(f.y+j),c); }
@@ -144,12 +148,30 @@ export function selectSimilar(x0,y0,contiguous,additive){
   const w=maxX-minX+1, h=maxY-minY+1;
   const data=new Array(w*h).fill(null);
   for(const [k,c] of abs){ const [ax,ay]=k.split(",").map(Number); data[(ay-minY)*w+(ax-minX)]=c; }
-
   state.floatSel={data,w,h,x:minX,y:minY};
   state.sel={x:minX,y:minY,w,h};
   state.thumbsDirty=true;
   buildLayers();
-  setHint(cells.length+" pixel"+(cells.length>1?"s":"")+(additive?" ajoutés":" sélectionnés"));
+  setHint(picked+" pixel"+(picked>1?"s":"")+(additive?" ajoutés":" sélectionnés"));
+  return true;
+}
+// Lasso : cellules dont le centre est dans le polygone tracé (règle pair/impair) + cellules du tracé
+export function selectLasso(pts,additive){
+  const L=state.layers[state.active];
+  if(L.img){ setHint("Le lasso ne s'applique pas aux calques image"); return; }
+  if(!additive) commitFloat();
+  const cells=new Map(); pts.forEach(([x,y])=>cells.set(x+","+y,[x,y]));
+  if(pts.length>=3){
+    let minX=state.W,minY=state.H,maxX=0,maxY=0;
+    for(const [x,y] of pts){ minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); }
+    const inside=(px,py)=>{ let c=false;
+      for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+        const xi=pts[i][0]+.5, yi=pts[i][1]+.5, xj=pts[j][0]+.5, yj=pts[j][1]+.5;
+        if((yi>py)!==(yj>py) && px<(xj-xi)*(py-yi)/(yj-yi)+xi) c=!c; }
+      return c; };
+    for(let y=minY;y<=maxY;y++) for(let x=minX;x<=maxX;x++) if(inside(x+.5,y+.5)) cells.set(x+","+y,[x,y]);
+  }
+  floatFromCells(L,[...cells.values()],additive);
 }
 
 // ---------- Texte pixel (polices bitmap) ----------

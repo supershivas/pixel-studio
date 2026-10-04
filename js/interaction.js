@@ -2,7 +2,7 @@ import { state, view, hint, stage } from "./state.js";
 import { inBounds, insideRect, render, clampSel, liftSelection, commitFloat, copySelection, cutSelection,
   deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx } from "./helpers.js";
 import { snapshot, undo, redo } from "./history.js";
-import { stamp, line, floodFill, selectSimilar, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
+import { stamp, line, floodFill, selectSimilar, selectLasso, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
 import { setColor, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, updateCropFields, prefs } from "./ui.js";
 
 // ---------- Pointer interaction ----------
@@ -41,6 +41,10 @@ view.addEventListener("pointerdown",e=>{
   if(!inBounds(x,y)) return;
   startX=x;startY=y;lastX=x;lastY=y;
 
+  if(state.tool==="lasso"){
+    if(state.layers[state.active].img){ setHint("Le lasso ne s'applique pas aux calques image"); return; }
+    state.lasso=[[x,y]]; drawing=true; render(); return;
+  }
   if(state.tool==="select"){
     if(state.floatSel && insideRect(x,y,state.floatSel.x,state.floatSel.y,state.floatSel.w,state.floatSel.h)){ state.selDrag={mode:"floatmove",ox:x-state.floatSel.x,oy:y-state.floatSel.y}; drawing=true; return; }
     if(state.sel && !state.floatSel && insideRect(x,y,state.sel.x,state.sel.y,state.sel.w,state.sel.h) && !state.layers[state.active].img){ liftSelection(); state.selDrag={mode:"floatmove",ox:x-state.floatSel.x,oy:y-state.floatSel.y}; drawing=true; return; }
@@ -88,6 +92,14 @@ view.addEventListener("pointermove",e=>{
   }
   if(!drawing){ setHint(inBounds(x,y)?(x+" , "+y+"   ·   "+state.tool):""); return; }
 
+  // lasso : on prolonge le tracé d'une cellule à l'autre
+  if(state.tool==="lasso" && drawing && state.lasso){
+    const cx=Math.max(0,Math.min(state.W-1,x)), cy=Math.max(0,Math.min(state.H-1,y));
+    const last=state.lasso[state.lasso.length-1];
+    if(cx!==last[0]||cy!==last[1]){ line(last[0],last[1],cx,cy,(px,py)=>state.lasso.push([px,py])); render(); }
+    return;
+  }
+
   // recadrage : glisser pour définir la zone à conserver
   if(state.tool==="crop" && drawing && state.cropDrag){
     const x0=state.cropDrag.x0,y0=state.cropDrag.y0;
@@ -124,6 +136,8 @@ view.addEventListener("pointermove",e=>{
 view.addEventListener("pointerup",e=>{
   if(!drawing) return;
   const [x,y]=cellFromEvent(e);
+  if(state.tool==="lasso" && state.lasso){ const pts=state.lasso; state.lasso=null; drawing=false;
+    selectLasso(pts,e.shiftKey); render(); return; }
   if(state.tool==="crop" && state.cropDrag){ state.cropDrag=null; drawing=false;
     if(state.cropRect && state.cropRect.w<=1 && state.cropRect.h<=1){ state.cropRect=null; render(); setHint(""); return; }
     render(); setHint("Entrée pour rogner · Échap pour annuler"); return; }
@@ -199,7 +213,7 @@ window.addEventListener("keydown",e=>{
   if((e.key.startsWith("Arrow")) && (state.sel||state.floatSel)){ e.preventDefault(); const n=e.shiftKey?10:1;
     if(e.key==="ArrowLeft") nudgeSelection(-n,0); else if(e.key==="ArrowRight") nudgeSelection(n,0);
     else if(e.key==="ArrowUp") nudgeSelection(0,-n); else if(e.key==="ArrowDown") nudgeSelection(0,n); return; }
-  const map={v:"move",m:"select",w:"wand",c:"crop",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",f:"shape",t:"text"};
+  const map={v:"move",m:"select",l:"lasso",w:"wand",c:"crop",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",f:"shape",t:"text"};
   const k=e.key.toLowerCase();
   if(e.ctrlKey||e.metaKey||e.altKey) return;   // laisser les raccourcis navigateur
   if(map[k]){ e.preventDefault(); setTool(map[k]); return; }

@@ -11,6 +11,8 @@ import { initFrames, transformAllFrames } from "./frames.js";
 const TOOLS=[
   {id:"move",    k:"V", label:"Déplacer le calque", svg:'<path d="M12 3l3 3h-2v5h5V9l3 3-3 3v-2h-5v5h2l-3 3-3-3h2v-5H6v2l-3-3 3-3v2h5V6H9z" fill="currentColor"/>'},
   {id:"select",  k:"M", label:"Sélection rectangulaire", svg:'<rect x="4" y="5" width="16" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2"/>'},
+  {id:"lasso",   k:"L", label:"Lasso (sélection à main levée — Maj pour ajouter)",
+    svg:'<path d="M12 4c-4.4 0-8 2.2-8 5s3.6 5 8 5 8-2.2 8-5-3.6-5-8-5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2"/><path d="M8.5 13.5c-.8 2.5 0 4.5 2.5 5 1.6.3 2.5-.4 2.5-1.5" fill="none" stroke="currentColor" stroke-width="1.6"/>'},
   {id:"wand",    k:"W", label:"Baguette magique (sélectionner les pixels similaires)",
     svg:'<path d="M4 20L15 9" stroke="currentColor" stroke-width="1.8"/><path d="M15 9l2 2" stroke="currentColor" stroke-width="1.8"/><path d="M18 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill="currentColor"/><path d="M6 5l.6 1.4L8 7l-1.4.6L6 9l-.6-1.4L4 7l1.4-.6z" fill="currentColor" opacity=".7"/>'},
   {id:"crop",    k:"C", label:"Recadrer",
@@ -114,10 +116,11 @@ updateToolOpts(state.tool);
 export function setTool(id){
   if(state.activeShape) bakeShape();
   if(typeof state.textEditing!=="undefined" && state.textEditing && id!=="text") commitCanvasText();
-  const selTools=new Set(["select","wand"]);
+  const selTools=new Set(["select","wand","lasso"]);
   if(selTools.has(state.tool) && !selTools.has(id)){ commitFloat(); state.sel=null; }
   if(state.tool==="crop" && id!=="crop"){ state.cropRect=null; }
   state.tool=id;
+  const clearSw=swatches.querySelector(".sw-clear"); if(clearSw) clearSw.classList.toggle("sel",id==="eraser");
   [...rail.querySelectorAll(".tool")].forEach(el=>el.classList.toggle("active",el.dataset.tool===id));
   updateToolOpts(id);
   if(id!=="text" && state.previewCells){ state.previewCells=null; render(); }
@@ -130,6 +133,11 @@ export function buildSwatches(){
   swatches.innerHTML="";
   const all=PALETTE.concat(state.customColors);
   all.forEach((c,i)=>{ const isCustom=i>=PALETTE.length;
+    if(i===2){                       // après blanc et noir : « transparent » = la gomme
+      const t=document.createElement("button"); t.className="sw sw-clear"+(state.tool==="eraser"?" sel":"");
+      t.title="Transparent — active la gomme"; t.addEventListener("click",()=>setTool("eraser"));
+      swatches.appendChild(t);
+    }
     const s=document.createElement("button"); s.className="sw"+(c.toUpperCase()===state.color?" sel":"");
     s.style.background=c; s.dataset.c=c.toUpperCase(); s.title=isCustom?(c+" — clic droit pour retirer"):c;
     s.addEventListener("click",()=>setColor(c));
@@ -216,7 +224,11 @@ export function openColorPicker(anchorEl, initialHex, cb){ _cpCb=cb||null;
   colorPop.style.top=Math.min(r.bottom+6, window.innerHeight-220)+"px"; }
 function closeColorPop(){ colorPop.hidden=true; _cpCb=null; }
 document.getElementById("addColorBtn").onclick=e=>{ e.stopPropagation(); closeMenus(); if(colorPop.hidden) openColorPicker(document.getElementById("addColorBtn"), state.color, null); else closeColorPop(); };
-document.addEventListener("click",e=>{ if(!colorPop.hidden && !colorPop.contains(e.target) && e.target.id!=="addColorBtn" && !e.target.classList.contains("fxsw")) closeColorPop(); });
+// cliquer sur la couleur en cours ouvre le sélecteur de couleur
+const curChip=document.getElementById("curChip");
+curChip.onclick=e=>{ e.stopPropagation(); closeMenus();
+  if(colorPop.hidden) openColorPicker(curChip, state.color, hex=>setColor(hex)); else closeColorPop(); };
+document.addEventListener("click",e=>{ if(!colorPop.hidden && !colorPop.contains(e.target) && e.target.id!=="addColorBtn" && e.target.id!=="curChip" && !e.target.classList.contains("fxsw")) closeColorPop(); });
 
 // ---------- Options du calque & effets ----------
 // Les effets sont pré-appliqués en direct sur le dessin pendant qu'on règle les paramètres,

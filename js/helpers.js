@@ -147,6 +147,12 @@ export function deleteSelection(){ if(state.floatSel){ state.floatSel=null; stat
   if(state.sel && !state.layers[state.active].img){ snapshot(); const L=state.layers[state.active]; const {x,y,w,h}=state.sel;
     for(let j=0;j<h;j++) for(let i=0;i<w;i++) setLayerAt(L,x+i,y+j,null); state.thumbsDirty=true; buildLayers(); render(); } }
 export function pasteClipboard(){ if(!state.clipboard) return; commitFloat();
+  // la copie arrive dans un nouveau calque, juste au-dessus du calque actif
+  snapshot();
+  const cur=state.layers[state.active], nl=newLayer("Collage");
+  if(cur) nl.groupId=cur.groupId||null;
+  state.layers.splice(state.active+1,0,nl); state.active++;
+  state.thumbsDirty=true; buildLayers();
   const cx=state.sel?state.sel.x:Math.max(0,Math.floor((state.W-state.clipboard.w)/2)), cy=state.sel?state.sel.y:Math.max(0,Math.floor((state.H-state.clipboard.h)/2));
   state.floatSel={data:state.clipboard.data.slice(),w:state.clipboard.w,h:state.clipboard.h,x:cx,y:cy}; state.sel={x:cx,y:cy,w:state.clipboard.w,h:state.clipboard.h};
   setTool("select"); render(); setHint("Collé — déplace au curseur ou aux flèches, Entrée pour valider"); }
@@ -255,6 +261,18 @@ export function drawGrid(){
     octx.strokeStyle="#fff"; octx.lineDashOffset=4; octx.strokeRect(sr.x*state.zoom+.5, sr.y*state.zoom+.5, sr.w*state.zoom-1, sr.h*state.zoom-1);
     octx.restore(); }
   drawCropOverlay();
+  drawLassoPath();
+}
+
+// tracé du lasso en cours (le contour se ferme tout seul au relâchement)
+function drawLassoPath(){
+  const pts=state.lasso; if(!pts || pts.length<2) return;
+  const z=state.zoom, path=()=>{ octx.beginPath();
+    pts.forEach(([x,y],i)=>{ const px=(x+.5)*z, py=(y+.5)*z; i?octx.lineTo(px,py):octx.moveTo(px,py); }); octx.closePath(); };
+  octx.save(); octx.lineWidth=1; octx.setLineDash([4,3]);
+  octx.strokeStyle="#000"; path(); octx.stroke();
+  octx.strokeStyle="#fff"; octx.lineDashOffset=4; path(); octx.stroke();
+  octx.restore();
 }
 
 // ---------- Aperçu de l'outil Recadrer (assombrit l'extérieur de la zone gardée) ----------

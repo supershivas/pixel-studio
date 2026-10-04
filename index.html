@@ -203,12 +203,14 @@
   .block{padding:14px 14px;border-bottom:1px solid var(--line)}
   .block h2{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);
     margin:0 0 10px;font-weight:700}
-  .swatches{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+  .swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+  .sw-clear{background:repeating-conic-gradient(#8893a8 0 25%,#d8deea 0 50%) 0 0/10px 10px}
   .sw{aspect-ratio:1;border-radius:5px;border:2px solid transparent;cursor:pointer;position:relative}
   .sw:hover{transform:scale(1.06)}
   .sw.sel{border-color:var(--ink);box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
   .current{display:flex;align-items:center;gap:10px;margin-top:12px}
-  .current .chip{width:34px;height:34px;border-radius:6px;border:1px solid var(--line)}
+  .current .chip{width:34px;height:34px;border-radius:6px;border:1px solid var(--line);padding:0;cursor:pointer}
+  .current .chip:hover{border-color:var(--ink)}
   .shade{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);cursor:pointer;padding:0}
   .shade:hover{border-color:var(--ink)}
   .colorpop{position:fixed;z-index:120;width:184px;background:var(--panel);border:1px solid var(--line);
@@ -232,8 +234,8 @@
     border-radius:6px;padding:5px 7px;font-family:var(--mono);font-size:12px;text-transform:uppercase}
   .current code{font:12px var(--mono);color:var(--ink-dim)}
   .cp-label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin-top:2px}
-  .cp-swatches{grid-template-columns:repeat(8,1fr);gap:4px}
-  .cp-swatches .sw{width:16px;height:16px;border-radius:3px}
+  .cp-swatches{display:flex;flex-wrap:wrap;gap:4px}
+  .cp-swatches .sw{width:16px;height:16px;border-radius:3px;flex:0 0 16px;padding:0}
 
   .opts{display:flex;flex-direction:column;gap:10px}
   .row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--ink-dim)}
@@ -473,7 +475,6 @@
     <div class="menu-root">
       <button class="menu-btn" data-menu="fx">Effets</button>
       <div class="menu" id="menu-fx" style="min-width:270px">
-        <div class="menu-label">Aperçu en direct, appliqué à la validation</div>
         <button class="menu-item" id="fxGoColor" data-close>Couleur…</button>
         <button class="menu-item" id="invertLayer" data-close>Inverser les couleurs…</button>
         <button class="menu-item" id="snapLayerPalette" data-close>Reposer sur la palette…</button>
@@ -557,7 +558,7 @@
       </div>
       <div class="swatches" id="swatches"></div>
       <div class="current">
-        <span class="chip" id="curChip"></span>
+        <button class="chip" id="curChip" title="Choisir une couleur"></button>
         <code id="curHex">#003399</code>
         <span style="flex:1"></span>
         <button class="shade" id="shadeDark" title="Plus foncé"></button>
@@ -711,7 +712,6 @@
       </div>
     </div>
     <div class="foot">
-      <p class="fx-foot-note">Aperçu en direct sur le dessin — rien n'est appliqué tant que tu n'as pas validé.</p>
       <button class="mini" id="fxResetBtn">Réinitialiser les effets</button>
       <button class="mini" id="fxCancel">Annuler</button>
       <button class="menu-btn active" id="fxOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Appliquer</button>
@@ -771,7 +771,6 @@
       <p class="note">Le résultat est ajouté en nouveau calque, le calque image d'origine n'est pas modifié. Déplace la fenêtre par son en-tête pour dégager l'aperçu.</p>
     </div>
     <div class="foot">
-      <p class="fx-foot-note">Aperçu en direct sur le dessin — rien n'est appliqué tant que tu n'as pas validé.</p>
       <button class="mini" id="pixelizeCancel">Annuler</button>
       <button class="menu-btn active" id="pixelizeOk" style="border:1px solid var(--accent);background:var(--accent);color:#1a1400;font-weight:700">Appliquer</button>
     </div>

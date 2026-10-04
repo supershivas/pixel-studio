@@ -16,6 +16,7 @@ import "./tile.js";
 import "./rulers.js";
 import "./historyPanel.js";
 import "./files.js";
+import "./sheet.js";
 
 // ---------- Init ----------
 loadPrefs();

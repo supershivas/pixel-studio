@@ -178,6 +178,9 @@
   input.txt::placeholder{color:var(--ink-dim)}
   .lock-badge{font:10px var(--mono);letter-spacing:.04em;text-transform:none;color:var(--accent);margin-right:auto;margin-left:8px}
   .fill{width:100%}
+  .sheet-preview{display:block;width:100%;max-height:320px;object-fit:contain;image-rendering:pixelated;cursor:pointer;margin:10px 0 0;
+    border:1px solid var(--line);border-radius:6px;
+    background:conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/8px 8px}
   .floatpanel{position:fixed;right:268px;bottom:84px;width:236px;z-index:60;background:var(--panel);
     border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.5);padding:0 0 10px}
   .floatpanel header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);
@@ -460,6 +463,7 @@
         <button class="menu-item" id="miClose" data-close>Fermer le projet (Ctrl/⌘W)</button>
         <div class="menu-sep"></div>
         <button class="menu-item" id="miImportImg" data-close>Importer une image (calque)…</button>
+        <button class="menu-item" id="miImportSheet" data-close>Importer une planche de sprites…</button>
         <input type="file" id="imgFile" accept="image/*" hidden>
         <input type="number" id="expScale" value="15" hidden>
         <div hidden>
@@ -852,6 +856,34 @@
       <div class="menu-label" style="padding-left:0;margin-top:16px">Projets récents (sur cet appareil)</div>
       <div class="home-recents" id="homeRecents"></div>
       <p class="note" id="homeEmptyNote" hidden>Aucun projet récent pour l'instant — enregistre ou ferme un projet pour le retrouver ici.</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="sheetModal">
+  <div class="modal w520" role="dialog" aria-label="Importer une planche de sprites">
+    <header><h2>Importer une planche de sprites</h2><button class="modal-x" id="sheetClose" title="Fermer" aria-label="Fermer">×</button></header>
+    <div class="body">
+      <div class="pref"><div class="lbl">Image source<small id="shSrcName">Aucune image</small></div>
+        <div class="inline sm"><button id="shPick">Choisir un fichier…</button><button id="shUseLayer" title="Utiliser l'image du calque image actif">Calque image actif</button></div></div>
+      <input type="file" id="shFile" accept="image/*" hidden>
+      <canvas class="sheet-preview" id="shPreview" width="1" height="1"></canvas>
+      <p class="note">Clique une cellule de l'aperçu pour l'exclure de l'animation (ou la reprendre).</p>
+      <div class="pref"><div class="lbl">Taille d'une cellule<small>en pixels du dessin</small></div>
+        <div class="inline sm"><input type="number" id="shCW" min="1" max="512" value="32"> × <input type="number" id="shCH" min="1" max="512" value="32"></div></div>
+      <div class="pref"><div class="lbl">Marge &amp; espacement<small>Autour de la planche, puis entre les cellules</small></div>
+        <div class="inline sm"><input type="number" id="shMargin" min="0" max="256" value="0"> <input type="number" id="shGap" min="0" max="256" value="0"></div></div>
+      <div class="pref"><div class="lbl">Réduire de ÷<small>Pour une planche agrandie (détecté automatiquement)</small></div>
+        <input type="number" id="shScale" min="1" max="64" value="1"></div>
+      <div class="pref"><div class="lbl">Ignorer les cellules vides</div>
+        <label class="switch"><input type="checkbox" id="shSkipEmpty" checked><span class="sl"></span></label></div>
+      <div class="pref"><div class="lbl">Destination</div>
+        <select id="shDest"><option value="append">Ajouter à l'animation courante</option><option value="new">Nouveau projet à la taille d'une cellule</option></select></div>
+      <div class="pref"><div class="lbl">Résultat</div><span class="exp-sum" id="shSummary">—</span></div>
+    </div>
+    <div class="foot">
+      <button id="sheetCancel">Annuler</button>
+      <button class="primary" id="sheetOk" disabled>Importer</button>
     </div>
   </div>
 </div>

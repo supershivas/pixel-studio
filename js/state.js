@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.15.1";
+export const APP_VERSION = "1.16.0";
 
 // ---------- Palette de base ----------
 // Ordre d'affichage (grille de 6 colonnes) : neutres (blanc, noir, [transparent ajouté par l'UI],

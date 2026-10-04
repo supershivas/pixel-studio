@@ -50,6 +50,16 @@ export function duplicateFrame(i){
   state.activeFrame=i+1;
   loadFrame(state.activeFrame);
 }
+// Ajoute (ou remplace) des frames à partir de jeux de calques déjà construits à la taille du canevas.
+// Comme les autres opérations sur les frames, l'historique repart de l'état obtenu.
+export function importFrames(layerSets,mode){
+  syncCurrentFrame(); stopPlayback();
+  const list=layerSets.map(layers=>({ id:state.frameSeq++, name:"", layers, active:layers.length-1, delay:null }));
+  if(mode==="replace"){ state.frames=list; state.activeFrame=0; }
+  else { state.activeFrame=state.frames.length; state.frames.push(...list); }
+  state.frames.forEach((f,i)=>f.name=String(i+1));
+  loadFrame(state.activeFrame);
+}
 export function addFrame(){ duplicateFrame(state.activeFrame); }
 
 export function deleteFrame(i){

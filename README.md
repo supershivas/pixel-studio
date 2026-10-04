@@ -21,6 +21,7 @@
   - `historyPanel.js` — panneau d'historique
   - `files.js` — glisser-déposer et coller une image
   - `update.js` — détection de mise à jour et service worker
+  - `sheet.js` — import d'une planche de sprites (découpe en frames)
   - `dither.js` — matrices de Bayer partagées
   - `ui.js` — outils, palette, sélecteur de couleur, calques, modales
   - `frames.js` — frames de l'animation

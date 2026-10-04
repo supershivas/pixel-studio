@@ -5,6 +5,7 @@ import { buildLayers, openColorPicker, setTool } from "./ui.js";
 import { setHint } from "./interaction.js";
 import { mirrorPoints, collectRegion } from "./drawing.js";
 import { BAYER4, BAYER8 } from "./dither.js";
+import { lockColor } from "./palettes.js";
 
 // ---------- Motifs de tramage (outil Tramage) ----------
 // Un motif décide, pour chaque cellule du CANEVAS (coordonnées absolues, donc les traits successifs
@@ -57,7 +58,8 @@ function gradientRegion(){
   return s ? {x:s.x,y:s.y,w:s.w,h:s.h} : {x:0,y:0,w:state.W,h:state.H};
 }
 // couleur (hex, ou null = transparent) de la cellule (x,y) pour un dégradé de A vers B
-function gradientColor(g,x,y){
+function gradientColor(g,x,y){ return lockColor(gradientRaw(g,x,y)); }
+function gradientRaw(g,x,y){
   const px=x+.5-(g.x0+.5), py=y+.5-(g.y0+.5), dx=g.x1-g.x0, dy=g.y1-g.y0, len2=dx*dx+dy*dy;
   let t=0;
   if(len2>0) t = state.gradShape==="radial" ? Math.hypot(px,py)/Math.sqrt(len2) : (px*dx+py*dy)/len2;

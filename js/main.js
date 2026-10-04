@@ -11,6 +11,7 @@ import "./modals.js";
 import "./update.js";
 import "./patterns.js";
 import "./stamps.js";
+import "./palettes.js";
 
 // ---------- Init ----------
 loadPrefs();

@@ -13,6 +13,7 @@
   - `interaction.js` — pointeur, clavier, zoom, navigation
   - `patterns.js` — outils Dégradé et Tramage, remplacer une couleur
   - `stamps.js` — transformation de la sélection et tampons
+  - `palettes.js` — menu Palette : bibliothèque, extraction, verrouillage
   - `dither.js` — matrices de Bayer partagées
   - `ui.js` — outils, palette, sélecteur de couleur, calques, modales
   - `frames.js` — frames de l'animation

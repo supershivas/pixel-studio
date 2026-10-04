@@ -446,7 +446,7 @@ function pixelizeParams(){
            dither:document.getElementById("pxDither").value,                // none | bayer4 | bayer8 | floyd | atkinson
            strength:(+document.getElementById("pxStrength").value||0)/100 };
 }
-function renderPixelizeSource(L){
+export function renderPixelizeSource(L){
   const off=document.createElement("canvas"); off.width=state.W; off.height=state.H; const g=off.getContext("2d");
   g.imageSmoothingEnabled=true;
   const im=L._imgEl, s=Math.min(state.W/im.naturalWidth,state.H/im.naturalHeight), w=im.naturalWidth*s, h=im.naturalHeight*s;
@@ -454,7 +454,7 @@ function renderPixelizeSource(L){
   return g.getImageData(0,0,state.W,state.H).data;
 }
 // moyenne par bloc, pondérée par l'opacité ; les blocs trop transparents sont ignorés (a=0)
-function pixelizeCells(px,block,alphaThresh){
+export function pixelizeCells(px,block,alphaThresh){
   const gw=Math.ceil(state.W/block), gh=Math.ceil(state.H/block);
   const rgb=new Float32Array(gw*gh*3), ok=new Uint8Array(gw*gh);
   for(let cy=0;cy<gh;cy++) for(let cx=0;cx<gw;cx++){
@@ -468,7 +468,7 @@ function pixelizeCells(px,block,alphaThresh){
   return {gw,gh,rgb,ok};
 }
 // médiane coupée : N couleurs représentatives des blocs opaques de l'image
-function medianCutPalette(cells,n){
+export function medianCutPalette(cells,n){
   const pts=[]; for(let c=0;c<cells.ok.length;c++) if(cells.ok[c]) pts.push(c);
   if(!pts.length) return [[0,0,0]];
   const rgb=cells.rgb;
@@ -488,7 +488,7 @@ function medianCutPalette(cells,n){
   return boxes.map(b=>{ let r=0,g=0,bl=0; for(const c of b.idxs){ r+=rgb[c*3]; g+=rgb[c*3+1]; bl+=rgb[c*3+2]; }
     const m=b.idxs.length; return [Math.round(r/m),Math.round(g/m),Math.round(bl/m)]; });
 }
-const toHex=([r,g,b])=>"#"+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("").toUpperCase();
+export const toHex=([r,g,b])=>"#"+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("").toUpperCase();
 function pixelizeData(L,p){
   if(!pixelizeCache || pixelizeCache.layer!==L) pixelizeCache={layer:L, px:renderPixelizeSource(L), cells:null, pal:null};
   const C=pixelizeCache;

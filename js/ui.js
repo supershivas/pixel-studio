@@ -6,6 +6,7 @@ import { setHint, fitZoom } from "./interaction.js";
 import { syncPresetToSize } from "./io.js";
 import { showToast } from "./toast.js";
 import { initFrames, transformAllFrames } from "./frames.js";
+import { lockColor } from "./palettes.js";
 
 // ---------- Tools UI ----------
 const TOOLS=[
@@ -162,7 +163,7 @@ function mixHex(hex,target,t){ const [r,g,b]=hexToRgb(hex),[tr,tg,tb]=hexToRgb(t
   return "#"+[m(r,tr),m(g,tg),m(b,tb)].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase(); }
 const lighter=h=>mixHex(h,"#FFFFFF",0.35), darker=h=>mixHex(h,"#000000",0.35);
 export function setColor2(c){
-  state.color2=c.toUpperCase();
+  state.color2=lockColor(c.toUpperCase());
   document.getElementById("curChip2").style.background=state.color2;
 }
 document.getElementById("curChip2").onclick=e=>{ e.stopPropagation(); closeMenus();
@@ -170,7 +171,7 @@ document.getElementById("curChip2").onclick=e=>{ e.stopPropagation(); closeMenus
 document.getElementById("swapColors").onclick=()=>swapColors();
 export function swapColors(){ const a=state.color; setColor(state.color2); setColor2(a); }
 export function setColor(c){
-  state.color=c.toUpperCase();
+  state.color=lockColor(c.toUpperCase());
   [...swatches.children].forEach(el=>el.classList.toggle("sel",el.dataset.c===state.color));
   document.getElementById("curChip").style.background=state.color;
   document.getElementById("curHex").textContent=state.color;

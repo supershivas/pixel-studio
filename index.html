@@ -174,7 +174,10 @@
   input.txt{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;
     padding:6px 8px;font-family:var(--sans);font-size:13px;min-width:0}
   input.txt::placeholder{color:var(--ink-dim)}
+  .lock-badge{font:10px var(--mono);letter-spacing:.04em;text-transform:none;color:var(--accent);margin-right:auto;margin-left:8px}
   .fill{width:100%}
+  .pal-strip{display:flex;flex-wrap:wrap;gap:2px;max-width:230px;justify-content:flex-end}
+  .pal-strip i{width:14px;height:14px;border-radius:3px;border:1px solid var(--line);display:block}
   .grow{flex:1;min-width:0}
   /* mises en page de formulaire récurrentes */
   .pref.stack{display:block}
@@ -428,8 +431,6 @@
         <div class="menu-sep"></div>
         <button class="menu-item" id="miImportImg" data-close>Importer une image (calque)…</button>
         <input type="file" id="imgFile" accept="image/*" hidden>
-        <button class="menu-item" id="impPaletteBtn" data-close>Importer une palette…</button>
-        <input type="file" id="impPaletteFile" accept=".json,application/json" hidden>
         <input type="number" id="expScale" value="15" hidden>
         <div hidden>
           <button class="menu-item" id="miBatchSVG" data-close>Lot → SVG</button>
@@ -505,6 +506,19 @@
         <button class="menu-item" id="flattenLayers" data-close>Aplatir le dessin</button>
         <div class="menu-sep"></div>
         <button class="menu-item" id="delLayer" data-close>Supprimer</button>
+      </div>
+    </div>
+    <div class="menu-root">
+      <button class="menu-btn" data-menu="palette">Palette</button>
+      <div class="menu" id="menu-palette" style="min-width:260px">
+        <button class="menu-item" id="palLibraryOpen" data-close>Bibliothèque de palettes…</button>
+        <button class="menu-item" id="palExtractOpen" data-close>Extraire la palette de l'image…</button>
+        <button class="menu-item" id="impPaletteBtn" data-close>Importer une palette (.json)…</button>
+        <input type="file" id="impPaletteFile" accept=".json,application/json" hidden>
+        <div class="menu-sep"></div>
+        <label class="menu-check"><input type="checkbox" id="palLock"> Verrouiller sur la palette</label>
+        <div class="menu-sep"></div>
+        <button class="menu-item" id="palClearCustom" data-close>Retirer les couleurs ajoutées</button>
       </div>
     </div>
     <div class="menu-root">
@@ -599,7 +613,7 @@
 
   <aside class="side">
     <div class="block">
-      <h2 style="display:flex;align-items:center;justify-content:space-between">Palette
+      <h2 style="display:flex;align-items:center;justify-content:space-between">Palette <span class="lock-badge" id="palLockBadge" hidden title="Les couleurs sont ramenées à la palette">verrouillée</span>
         <button id="addColorBtn" class="mini" title="Ajouter une couleur (hexa)" style="padding:2px 8px;font-size:14px;line-height:1">+</button>
       </h2>
       <div id="colorPop" class="colorpop" hidden>
@@ -794,6 +808,32 @@
       <div class="menu-label" style="padding-left:0;margin-top:16px">Projets récents (sur cet appareil)</div>
       <div class="home-recents" id="homeRecents"></div>
       <p class="note" id="homeEmptyNote" hidden>Aucun projet récent pour l'instant — enregistre ou ferme un projet pour le retrouver ici.</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="paletteLibModal">
+  <div class="modal w520" role="dialog" aria-label="Bibliothèque de palettes">
+    <header><h2>Bibliothèque de palettes</h2><button class="modal-x" id="palLibClose" title="Fermer" aria-label="Fermer">×</button></header>
+    <div class="body" id="palLibList"></div>
+    <div class="foot"><button class="primary" id="palLibDone">Terminé</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="paletteExtractModal">
+  <div class="modal w420" role="dialog" aria-label="Extraire la palette">
+    <header><h2>Extraire la palette</h2><button class="modal-x" id="palExClose" title="Fermer" aria-label="Fermer">×</button></header>
+    <div class="body">
+      <div class="pref"><div class="lbl">Source<small id="palExSource">—</small></div></div>
+      <div class="pref"><div class="lbl">Nombre de couleurs<small>Les plus représentatives</small></div>
+        <div class="inline"><input type="range" id="palExN" min="2" max="32" value="8"><span class="readout" id="palExNV">8</span></div></div>
+      <div class="pref"><div class="lbl">Aperçu</div><div class="pal-strip" id="palExStrip"></div></div>
+      <div class="pref"><div class="lbl">Remplacer les couleurs ajoutées<small>Sinon, les nouvelles couleurs s'ajoutent</small></div>
+        <label class="switch"><input type="checkbox" id="palExReplace"><span class="sl"></span></label></div>
+    </div>
+    <div class="foot">
+      <button id="palExCancel">Annuler</button>
+      <button class="primary" id="palExOk">Ajouter à la palette</button>
     </div>
   </div>
 </div>

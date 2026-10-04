@@ -12,6 +12,7 @@
   - `drawing.js` — primitives de dessin, texte pixel, formes vectorielles
   - `interaction.js` — pointeur, clavier, zoom, navigation
   - `patterns.js` — outils Dégradé et Tramage, remplacer une couleur
+  - `stamps.js` — transformation de la sélection et tampons
   - `dither.js` — matrices de Bayer partagées
   - `ui.js` — outils, palette, sélecteur de couleur, calques, modales
   - `frames.js` — frames de l'animation
@@ -30,7 +31,7 @@
 | `Ctrl/⌘ + N` | Nouveau projet (avec proposition d'enregistrement) |
 | `Ctrl/⌘ + W` | Fermer le projet (avec proposition d'enregistrement) |
 | `Ctrl/⌘ + T` | Transformer le calque |
-| `V M L W C B E G I F T` | Outils (L = lasso) |
+| `V M L W C B E G I F T S` | Outils (L = lasso, S = tampon) |
 | `D` / `H` | Dégradé / Tramage |
 | `X` | Échanger couleur principale et secondaire (Alt+clic sur une couleur = secondaire) |
 | `Maj + clic` (crayon) | Ligne droite depuis le dernier point tracé |

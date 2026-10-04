@@ -2,6 +2,7 @@ import { state, view, hint, stage } from "./state.js";
 import { inBounds, insideRect, render, clampSel, liftSelection, commitFloat, copySelection, cutSelection,
   deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx, layerAt, setLayerAt } from "./helpers.js";
 import { snapshot, undo, redo } from "./history.js";
+import { stampPlace, stampGhost, stampSpacing } from "./stamps.js";
 import { stampPattern, patternFill, gradientPreview, gradientApply } from "./patterns.js";
 import { stamp, line, floodFill, selectSimilar, selectLasso, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
 import { setColor, swapColors, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, updateCropFields, prefs } from "./ui.js";
@@ -71,6 +72,9 @@ view.addEventListener("pointerdown",e=>{
     if(e.shiftKey && lastPen && lastPen.id===L.id) line(lastPen.x,lastPen.y,x,y,(px,py)=>penStep(px,py,L));   // Maj : ligne droite
     else penStep(x,y,L);
     render(); }
+  else if(state.tool==="stamp"){ if(state.layers[state.active].img){ setHint("Le tampon ne s'applique pas aux calques image"); return; }
+    if(!state.stamps.length){ setHint("Aucun tampon : sélectionne une zone puis Édition › Enregistrer comme tampon"); return; }
+    snapshot(); drawing=true; state.previewCells=null; stampPlace(x,y); render(); }
   else if(state.tool==="gradient"){ if(state.layers[state.active].img){ setHint("Le dégradé ne s'applique pas aux calques image"); return; }
     state.gradDrag={x0:x,y0:y,x1:x,y1:y}; drawing=true; gradientPreview(); }
   else if(state.tool==="dither"){ if(state.layers[state.active].img){ setHint("Le tramage ne s'applique pas aux calques image"); return; }
@@ -114,6 +118,7 @@ view.addEventListener("pointermove",e=>{
       else { if(horiz){ s.w=Math.max(1,2*Math.abs(ex)); } else { s.h=Math.max(1,2*Math.abs(ey)); } setHint("déformer"); } }
     shapeToPreview(); render(); return;
   }
+  if(state.tool==="stamp" && !drawing){ if(inBounds(x,y)) stampGhost(x,y); setHint(inBounds(x,y)?(x+" , "+y+"   ·   tampon"):""); return; }
   if(!drawing){ setHint(inBounds(x,y)?(x+" , "+y+"   ·   "+state.tool):""); return; }
 
   // lasso : on prolonge le tracé d'une cellule à l'autre
@@ -151,6 +156,9 @@ view.addEventListener("pointermove",e=>{
   // création d'une forme (glisser pour définir la boîte)
   if(creating){ state.activeShape=makeShape(startX,startY,x,y,e.shiftKey); shapeToPreview(); render(); setHint(e.shiftKey?"régulier (Maj)":"relâche pour éditer"); return; }
 
+  if(state.tool==="stamp"){
+    if(Math.hypot(x-lastX,y-lastY)>=stampSpacing()){ stampPlace(x,y); lastX=x; lastY=y; render(); }
+    return; }
   if(state.tool==="gradient" && state.gradDrag){ state.gradDrag.x1=x; state.gradDrag.y1=y; gradientPreview(); setHint("dégradé "+state.gradDrag.x0+","+state.gradDrag.y0+" → "+x+","+y); return; }
   if(state.tool==="dither"){ line(lastX,lastY,x,y,(px,py)=>stampPattern(px,py,state.layers[state.active])); lastX=x;lastY=y; render(); }
   else if(state.tool==="pencil"){ const L=state.layers[state.active]; line(lastX,lastY,x,y,(px,py)=>penStep(px,py,L)); lastX=x;lastY=y; render(); }
@@ -178,7 +186,8 @@ view.addEventListener("pointerup",e=>{
   if(state.tool==="shape" && state.shapeKind==="line"){ line_immediate_commit(startX,startY,x,y); state.previewCells=null; }
   drawing=false; state.thumbsDirty=true; render();
 });
-view.addEventListener("pointerleave",()=>{ if(state.tool==="text" && state.previewCells && !state.activeShape && !state.textEditing){ state.previewCells=null; render(); } });
+view.addEventListener("pointerleave",()=>{ if(state.tool==="stamp" && state.previewCells){ state.previewCells=null; render(); }
+  if(state.tool==="text" && state.previewCells && !state.activeShape && !state.textEditing){ state.previewCells=null; render(); } });
 
 // ---------- Zoom ----------
 export function setZoom(z){ state.zoom=Math.max(1,Math.min(40,z)); render(); }
@@ -241,7 +250,7 @@ window.addEventListener("keydown",e=>{
   if((e.key.startsWith("Arrow")) && (state.sel||state.floatSel)){ e.preventDefault(); const n=e.shiftKey?10:1;
     if(e.key==="ArrowLeft") nudgeSelection(-n,0); else if(e.key==="ArrowRight") nudgeSelection(n,0);
     else if(e.key==="ArrowUp") nudgeSelection(0,-n); else if(e.key==="ArrowDown") nudgeSelection(0,n); return; }
-  const map={v:"move",m:"select",l:"lasso",d:"gradient",h:"dither",w:"wand",c:"crop",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",f:"shape",t:"text"};
+  const map={s:"stamp",v:"move",m:"select",l:"lasso",d:"gradient",h:"dither",w:"wand",c:"crop",b:"pencil",e:"eraser",g:"fill",i:"eyedropper",f:"shape",t:"text"};
   const k=e.key.toLowerCase();
   if(e.ctrlKey||e.metaKey||e.altKey) return;   // laisser les raccourcis navigateur
   if(k==="x"){ e.preventDefault(); swapColors(); return; }

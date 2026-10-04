@@ -137,9 +137,43 @@ export function commitFloat(){ if(!state.floatSel) return; const L=state.layers[
     for(let j=0;j<h;j++) for(let i=0;i<w;i++){ const c=data[j*w+i]; if(c!==null) setLayerAt(L,x+i,y+j,c); }
     state.sel={x,y,w,h}; state.thumbsDirty=true; }
   state.floatSel=null; buildLayers(); }
-export function copySelection(){ if(state.floatSel){ state.clipboard={data:state.floatSel.data.slice(),w:state.floatSel.w,h:state.floatSel.h}; return; }
+// contenu de la sélection (flottante, ou rectangle du calque actif) sous forme {data,w,h}, ou null
+export function selectionData(){
+  if(state.floatSel) return {data:state.floatSel.data.slice(),w:state.floatSel.w,h:state.floatSel.h};
   if(state.sel && !state.layers[state.active].img){ const L=state.layers[state.active]; const {x,y,w,h}=state.sel; const data=new Array(w*h).fill(null);
-    for(let j=0;j<h;j++) for(let i=0;i<w;i++) data[j*w+i]=layerAt(L,x+i,y+j); state.clipboard={data,w,h}; } }
+    for(let j=0;j<h;j++) for(let i=0;i<w;i++) data[j*w+i]=layerAt(L,x+i,y+j); return {data,w,h}; }
+  return null;
+}
+export function copySelection(){ const d=selectionData(); if(d) state.clipboard=d; }
+// Transforme la sélection (soulevée si besoin) : flipH, flipV, cw, ccw, up2 (×2), down2 (÷2)
+export function transformSelection(op){
+  if(!state.floatSel){
+    if(!state.sel) return "none";
+    if(state.layers[state.active].img) return "img";
+    liftSelection();
+  }
+  const f=state.floatSel, {w,h,data}=f; let nw=w, nh=h, nd;
+  const at=(x,y)=>data[y*w+x];
+  if(op==="flipH"||op==="flipV"){ nd=new Array(w*h);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++) nd[y*w+x]= op==="flipH" ? at(w-1-x,y) : at(x,h-1-y); }
+  else if(op==="cw"||op==="ccw"){ nw=h; nh=w; nd=new Array(w*h);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      const nx= op==="cw" ? h-1-y : y, ny= op==="cw" ? x : w-1-x; nd[ny*nw+nx]=at(x,y); } }
+  else if(op==="up2"){ nw=w*2; nh=h*2;
+    if(nw>512||nh>512) return "big";
+    nd=new Array(nw*nh);
+    for(let y=0;y<nh;y++) for(let x=0;x<nw;x++) nd[y*nw+x]=at(x>>1,y>>1); }
+  else if(op==="down2"){ nw=Math.max(1,Math.ceil(w/2)); nh=Math.max(1,Math.ceil(h/2)); nd=new Array(nw*nh).fill(null);
+    for(let y=0;y<nh;y++) for(let x=0;x<nw;x++){        // premier pixel non vide du bloc 2×2 : les traits fins survivent
+      for(const [dx,dy] of [[0,0],[1,0],[0,1],[1,1]]){ const sx=x*2+dx, sy=y*2+dy;
+        if(sx<w && sy<h && at(sx,sy)!==null){ nd[y*nw+x]=at(sx,sy); break; } } } }
+  else return "none";
+  // on garde le centre de la sélection (sans sortir du canevas)
+  f.x=Math.max(0,Math.min(state.W-nw,f.x+Math.round((w-nw)/2))); f.y=Math.max(0,Math.min(state.H-nh,f.y+Math.round((h-nh)/2)));
+  f.data=nd; f.w=nw; f.h=nh; state.sel={x:f.x,y:f.y,w:nw,h:nh};
+  state.thumbsDirty=true; render();
+  return "ok";
+}
 export function cutSelection(){ if(state.floatSel){ state.clipboard={data:state.floatSel.data.slice(),w:state.floatSel.w,h:state.floatSel.h}; state.floatSel=null; state.thumbsDirty=true; render(); return; }
   if(state.sel && !state.layers[state.active].img){ copySelection(); snapshot(); const L=state.layers[state.active]; const {x,y,w,h}=state.sel;
     for(let j=0;j<h;j++) for(let i=0;i<w;i++) setLayerAt(L,x+i,y+j,null); state.thumbsDirty=true; buildLayers(); render(); } }

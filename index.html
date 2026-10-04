@@ -178,7 +178,9 @@
   input.txt::placeholder{color:var(--ink-dim)}
   .lock-badge{font:10px var(--mono);letter-spacing:.04em;text-transform:none;color:var(--accent);margin-right:auto;margin-left:8px}
   .fill{width:100%}
-  .sheet-preview{display:block;width:100%;max-height:320px;object-fit:contain;image-rendering:pixelated;cursor:pointer;margin:10px 0 0;
+  .sheet-result{display:block;width:auto;height:auto;max-width:100%;max-height:110px;margin:8px 0 0;image-rendering:pixelated;border:1px solid var(--line);border-radius:6px;
+    background:conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/8px 8px}
+  .sheet-preview{display:block;width:100%;max-height:44vh;object-fit:contain;image-rendering:pixelated;cursor:pointer;margin:10px 0 0;
     border:1px solid var(--line);border-radius:6px;
     background:conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/8px 8px}
   .floatpanel{position:fixed;right:268px;bottom:84px;width:236px;z-index:60;background:var(--panel);
@@ -867,18 +869,33 @@
       <div class="pref"><div class="lbl">Image source<small id="shSrcName">Aucune image</small></div>
         <div class="inline sm"><button id="shPick">Choisir un fichier…</button><button id="shUseLayer" title="Utiliser l'image du calque image actif">Calque image actif</button></div></div>
       <input type="file" id="shFile" accept="image/*" hidden>
+      <div class="pref"><div class="lbl">Découpe<small id="shModeHint">Cellules alignées sur une grille</small></div>
+        <select id="shMode"><option value="grid">Grille régulière</option><option value="free">Cadres libres</option></select></div>
       <canvas class="sheet-preview" id="shPreview" width="1" height="1"></canvas>
-      <p class="note">Clique une cellule de l'aperçu pour l'exclure de l'animation (ou la reprendre).</p>
-      <div class="pref"><div class="lbl">Taille d'une cellule<small>en pixels du dessin</small></div>
-        <div class="inline sm"><input type="number" id="shCW" min="1" max="512" value="32"> × <input type="number" id="shCH" min="1" max="512" value="32"></div></div>
-      <div class="pref"><div class="lbl">Marge &amp; espacement<small>Autour de la planche, puis entre les cellules</small></div>
+      <p class="note" id="shNote">Clique une cellule de l'aperçu pour l'exclure de l'animation (ou la reprendre).</p>
+      <div class="pref" id="shFreeRow"><div class="lbl">Cadres<small>Clique pour ajouter, glisse pour déplacer, Suppr ou clic droit pour retirer</small></div>
+        <div class="inline sm"><button id="shDetect" title="Repère chaque sujet isolé sur le fond et place un cadre dessus">Détecter les sujets</button><button id="shClear">Effacer</button></div></div>
+      <div class="pref"><div class="lbl" id="shSizeLbl">Taille d'une cellule<small>en pixels de l'image</small></div>
+        <div class="inline sm"><input type="number" id="shCW" min="1" max="4096" value="32"> × <input type="number" id="shCH" min="1" max="4096" value="32"></div></div>
+      <div class="pref" id="shGridRow"><div class="lbl">Marge &amp; espacement<small>Autour de la planche, puis entre les cellules</small></div>
         <div class="inline sm"><input type="number" id="shMargin" min="0" max="256" value="0"> <input type="number" id="shGap" min="0" max="256" value="0"></div></div>
+      <div class="pref" id="shEmptyRow"><div class="lbl">Ignorer les cellules vides</div>
+        <label class="switch"><input type="checkbox" id="shSkipEmpty" checked><span class="sl"></span></label></div>
       <div class="pref"><div class="lbl">Réduire de ÷<small>Pour une planche agrandie (détecté automatiquement)</small></div>
         <input type="number" id="shScale" min="1" max="64" value="1"></div>
-      <div class="pref"><div class="lbl">Ignorer les cellules vides</div>
-        <label class="switch"><input type="checkbox" id="shSkipEmpty" checked><span class="sl"></span></label></div>
+      <div class="pref"><div class="lbl">Retirer le fond<small id="shBgInfo">Couleur détectée dans les coins de l'image</small></div>
+        <div class="inline"><input type="range" id="shTol" min="1" max="90" value="25"><span class="readout" id="shTolV">25 %</span>
+          <label class="switch"><input type="checkbox" id="shBgOn"><span class="sl"></span></label></div></div>
+      <div class="pref"><div class="lbl">Largeur de sortie<small id="shOutInfo">Taille finale d'une frame, en pixels de dessin</small></div>
+        <input type="number" id="shOutW" min="1" max="512" value="32"></div>
+      <div class="pref"><div class="lbl">Recaler le contenu<small>Compense les cadres posés approximativement</small></div>
+        <select id="shAlign"><option value="none">Ne pas recaler</option><option value="center">Centrer</option><option value="bottom">Centré, aligné en bas</option></select></div>
+      <div class="pref"><div class="lbl">Couleurs</div>
+        <div class="inline sm"><select id="shColors"><option value="keep">Toutes</option><option value="n">Limitées à…</option><option value="bw">Noir et blanc</option></select>
+          <input type="number" id="shColorsN" min="2" max="32" value="8"></div></div>
       <div class="pref"><div class="lbl">Destination</div>
-        <select id="shDest"><option value="append">Ajouter à l'animation courante</option><option value="new">Nouveau projet à la taille d'une cellule</option></select></div>
+        <select id="shDest"><option value="append">Ajouter à l'animation courante</option><option value="new">Nouveau projet à la taille d'une frame</option></select></div>
+      <canvas class="sheet-result" id="shResult" width="1" height="1"></canvas>
       <div class="pref"><div class="lbl">Résultat</div><span class="exp-sum" id="shSummary">—</span></div>
     </div>
     <div class="foot">

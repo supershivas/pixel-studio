@@ -23,10 +23,37 @@ export function wrapCell(x,y){
   if(state.wrap==="y"||state.wrap==="xy") y=((y%state.H)+state.H)%state.H;
   return inBounds(x,y) ? [x,y] : null;
 }
-export function stamp(x,y,col,L){ // brush square, mirror-aware, boucle-aware ; L = calque cible (décalage géré)
-  const half=Math.floor((state.brush-1)/2);
+// ---------- Formes de pinceau ----------
+// Décalages [dx,dy] (autour du curseur) des cellules d'un pinceau de taille n et de forme donnée, mis en cache.
+const brushCache=new Map();
+export function brushOffsets(n,shape){
+  if(shape==="spray") shape="round";                     // l'aérographe est un disque dont chaque cellule est tirée au hasard
+  const key=shape+n; let v=brushCache.get(key); if(v) return v;
+  const half=Math.floor((n-1)/2), c=(n-1)/2, out=[];
+  for(let j=0;j<n;j++) for(let i=0;i<n;i++){
+    const dx=i-c, dy=j-c; let on=true;
+    switch(shape){
+      case "round":     on = dx*dx+dy*dy <= ((n-0.5)/2)**2; break;
+      case "diamond":   on = Math.abs(dx)+Math.abs(dy) <= (n-1)/2+0.5; break;
+      case "hline":     on = j===half; break;
+      case "vline":     on = i===half; break;
+      case "slash":     on = i+j===n-1; break;
+      case "backslash": on = i===j; break;
+    }
+    if(on) out.push([i-half,j-half]);
+  }
+  brushCache.set(key,out); return out;
+}
+// taille effective : celle du curseur, modulée par la pression du stylet si l'option est active
+export function brushSize(){
+  if(!state.brushPressure) return state.brush;
+  return Math.max(1,Math.min(32,Math.round(state.brush*(0.2+1.6*state.pressure))));
+}
+export function stamp(x,y,col,L){ // pinceau (forme, taille, pression), symétrie et boucle ; L = calque cible (décalage géré)
+  const offs=brushOffsets(brushSize(),state.brushShape), spray=state.brushShape==="spray" && state.brush>2;
   for(const [px,py] of mirrorPoints(x,y))
-    for(let dy=-half;dy<state.brush-half;dy++) for(let dx=-half;dx<state.brush-half;dx++){
+    for(const [dx,dy] of offs){
+      if(spray && Math.random()>0.22) continue;
       const c=wrapCell(px+dx,py+dy);
       if(c) setLayerAt(L,c[0],c[1],col); // col null => efface
     }

@@ -613,9 +613,11 @@
 </header>
 
 <div class="toolopts" id="toolOpts">
-  <div class="row" id="optBrush">Taille du crayon / gomme
+  <div class="row" id="optBrush">Pinceau
     <input type="range" id="brush" min="1" max="32" value="1">
-    <input type="number" id="brushN" min="1" max="32" value="1"></div>
+    <input type="number" id="brushN" min="1" max="32" value="1">
+    <div class="shapekind-picker" id="brushShapePicker" title="Forme du pinceau"></div>
+    <label class="check" title="Apple Pencil : la taille suit la pression exercée"><input type="checkbox" id="brushPressure"> Pression</label></div>
   <div class="row" id="optShapeKind">Forme <div class="shapekind-picker" id="shapeKindPicker"></div></div>
   <label class="check" id="optFill"><input type="checkbox" id="fillShape"> Formes pleines</label>
   <div class="row" id="optStroke">Épaisseur du trait <input type="range" id="strokeW" min="1" max="6" value="1"><span id="strokeWV" style="font:12px var(--mono);width:16px">1</span></div>

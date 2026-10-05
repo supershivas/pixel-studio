@@ -3,7 +3,7 @@ import { layerAt, setLayerAt, inBounds, hexToRgb, render } from "./helpers.js";
 import { snapshot } from "./history.js";
 import { buildLayers, openColorPicker, setTool } from "./ui.js";
 import { setHint } from "./interaction.js";
-import { mirrorPoints, collectRegion, wrapCell } from "./drawing.js";
+import { mirrorPoints, collectRegion, wrapCell, brushOffsets, brushSize } from "./drawing.js";
 import { BAYER4, BAYER8 } from "./dither.js";
 import { lockColor } from "./palettes.js";
 
@@ -30,9 +30,10 @@ function patternColor(on,x,y){
 }
 // pinceau tramé : même géométrie que stamp() (taille, symétrie)
 export function stampPattern(x,y,L){
-  const on=patternOn(), half=Math.floor((state.brush-1)/2);
+  const on=patternOn(), offs=brushOffsets(brushSize(),state.brushShape), spray=state.brushShape==="spray" && state.brush>2;
   for(const [px,py] of mirrorPoints(x,y))
-    for(let dy=-half;dy<state.brush-half;dy++) for(let dx=-half;dx<state.brush-half;dx++){
+    for(const [dx,dy] of offs){
+      if(spray && Math.random()>0.22) continue;
       const cell=wrapCell(px+dx,py+dy); if(!cell) continue;
       const c=patternColor(on,cell[0],cell[1]); if(c!==undefined) setLayerAt(L,cell[0],cell[1],c);
     }
@@ -161,3 +162,23 @@ $("replaceOk").onclick=()=>{
   closeReplace();
   setHint(n ? n+" pixel"+(n>1?"s":"")+" remplacé"+(n>1?"s":"") : "Aucun pixel de cette couleur");
 };
+
+// ---------- Formes de pinceau (sélecteur de la barre d'options) ----------
+const BRUSH_SHAPES=[
+  {id:"square",label:"Carré",svg:'<rect x="6" y="6" width="12" height="12" fill="currentColor"/>'},
+  {id:"round",label:"Rond",svg:'<circle cx="12" cy="12" r="6.5" fill="currentColor"/>'},
+  {id:"diamond",label:"Losange",svg:'<path d="M12 4l8 8-8 8-8-8z" fill="currentColor"/>'},
+  {id:"hline",label:"Trait horizontal",svg:'<rect x="4" y="10.5" width="16" height="3" fill="currentColor"/>'},
+  {id:"vline",label:"Trait vertical",svg:'<rect x="10.5" y="4" width="3" height="16" fill="currentColor"/>'},
+  {id:"slash",label:"Diagonale /",svg:'<path d="M5 19L19 5" stroke="currentColor" stroke-width="3" fill="none"/>'},
+  {id:"backslash",label:"Diagonale \\",svg:'<path d="M5 5l14 14" stroke="currentColor" stroke-width="3" fill="none"/>'},
+  {id:"spray",label:"Aérographe (disque aléatoire)",svg:'<g fill="currentColor"><circle cx="8" cy="9" r="1.4"/><circle cx="13" cy="7" r="1.4"/><circle cx="16.5" cy="11" r="1.4"/><circle cx="11" cy="12" r="1.4"/><circle cx="7.5" cy="15.5" r="1.4"/><circle cx="14" cy="16.5" r="1.4"/><circle cx="17" cy="16" r="1"/></g>'},
+];
+const brushPicker=$("brushShapePicker");
+BRUSH_SHAPES.forEach(b=>{
+  const el=document.createElement("button"); el.type="button"; el.className="skind"+(b.id===state.brushShape?" active":""); el.title=b.label; el.dataset.shape=b.id;
+  el.innerHTML='<svg viewBox="0 0 24 24">'+b.svg+'</svg>';
+  el.addEventListener("click",()=>{ state.brushShape=b.id; [...brushPicker.children].forEach(c=>c.classList.toggle("active",c===el)); });
+  brushPicker.appendChild(el);
+});
+$("brushPressure").onchange=e=>state.brushPressure=e.target.checked;

@@ -5,7 +5,7 @@ import { snapshot, undo, redo, abortStroke } from "./history.js";
 import { touchCount, penIsDown } from "./touch.js";
 import { stampPlace, stampGhost, stampSpacing } from "./stamps.js";
 import { stampPattern, patternFill, gradientPreview, gradientApply } from "./patterns.js";
-import { stamp, line, floodFill, selectSimilar, selectLasso, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
+import { brushOffsets, stamp, line, floodFill, selectSimilar, selectLasso, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
 import { setColor, swapColors, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, updateCropFields, prefs } from "./ui.js";
 
 // ---------- Pointer interaction ----------
@@ -33,9 +33,9 @@ export function makeShape(x0,y0,x1,y1,square){
 }
 export function line_immediate_commit(x0,y0,x1,y1){ const d=state.layers[state.active].data;
   line(x0,y0,x1,y1,(px,py)=>stamp(px,py,state.color,state.layers[state.active])); }
-export function stampPreview(px,py){ const half=Math.floor((state.brush-1)/2);
+export function stampPreview(px,py){
   for(const [bx,by] of mirrorPoints(px,py))                       // l'aperçu montre la symétrie, comme le tracé validé
-    for(let dy=-half;dy<state.brush-half;dy++) for(let dx=-half;dx<state.brush-half;dx++){
+    for(const [dx,dy] of brushOffsets(state.brush,state.brushShape)){
       const nx=bx+dx,ny=by+dy; if(inBounds(nx,ny)) state.previewCells.set(nx+","+ny,state.color); } }
 
 // ---------- Crayon : « pixel perfect » (retire les coins en L) et ligne droite avec Maj ----------
@@ -53,6 +53,7 @@ function penStep(px,py,L){
 }
 
 function onViewDown(e){
+  state.pressure = e.pointerType==="pen" ? (e.pressure||0.5) : 0.5;
   state.stroking = state.tool==="pencil"||state.tool==="eraser"||state.tool==="dither"||state.tool==="stamp";   // active le cache de rendu des calques sous l'actif
   if(spaceHeld || e.button===1) return;   // laisser le pan (géré par la scène)
   if(e.pointerType==="touch" && (touchCount()>1 || penIsDown())) return;   // geste à plusieurs doigts, ou paume pendant que le stylet dessine
@@ -120,6 +121,7 @@ view.addEventListener("pointerdown",e=>{
 });
 
 view.addEventListener("pointermove",e=>{
+  state.pressure = e.pointerType==="pen" ? (e.pressure||0.5) : 0.5;
   if(pendingDown){ if(Math.hypot(e.clientX-pendingDown.e.clientX,e.clientY-pendingDown.e.clientY)>3) flushDown(); else return; }
   const [x,y]=cellFromEvent(e);
   // aperçu fantôme du texte

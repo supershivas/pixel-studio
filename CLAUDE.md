@@ -4,6 +4,7 @@
 
 ## Structure
 
+- `ROADMAP.md` — fonctionnalités à venir (cocher au fur et à mesure)
 - `index.html` — markup et styles
 - `js/` — logique en modules ES, chargés via `<script type="module" src="js/main.js">`
   - `state.js` — état mutable partagé (objet `state`) et références DOM

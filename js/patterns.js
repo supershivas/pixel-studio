@@ -182,3 +182,4 @@ BRUSH_SHAPES.forEach(b=>{
   brushPicker.appendChild(el);
 });
 $("brushPressure").onchange=e=>state.brushPressure=e.target.checked;
+$("stabilize").oninput=e=>state.stabilize=+e.target.value;

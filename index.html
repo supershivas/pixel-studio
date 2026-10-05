@@ -204,6 +204,8 @@
   input.txt::placeholder{color:var(--ink-dim)}
   .lock-badge{font:10px var(--mono);letter-spacing:.04em;text-transform:none;color:var(--accent);margin-right:auto;margin-left:8px}
   .fill{width:100%}
+  #cloudModal .menu-label{padding-left:0;margin-top:14px}
+  .cl-thumb{width:44px;height:44px;object-fit:contain;image-rendering:pixelated;border:1px solid var(--line);border-radius:6px;flex:none;background:var(--panel-2)}
   .sheet-result{display:block;width:auto;height:auto;max-width:100%;max-height:110px;margin:8px 0 0;image-rendering:pixelated;border:1px solid var(--line);border-radius:6px;
     background:conic-gradient(var(--checker-a) 90deg,var(--checker-b) 0 180deg,var(--checker-a) 0 270deg,var(--checker-b) 0) 0 0/8px 8px}
   .sheet-preview{display:block;width:100%;max-height:44vh;object-fit:contain;image-rendering:pixelated;cursor:pointer;margin:10px 0 0;
@@ -294,6 +296,11 @@
   .current{display:flex;align-items:center;gap:10px;margin-top:12px}
   .current .chip{width:34px;height:34px;border-radius:6px;border:1px solid var(--line);padding:0;cursor:pointer}
   .current .chip:hover{border-color:var(--ink)}
+  .color-ghost{position:fixed;z-index:300;width:30px;height:30px;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);border:3px solid var(--ink);box-shadow:0 8px 20px rgba(0,0,0,.5)}
+  .recent-label{margin-top:10px}
+  #recentColors{margin-top:6px}
+  .chips .chip{touch-action:none}
+  .sw{touch-action:none}
   .chips{position:relative;width:46px;height:42px;flex:0 0 auto}
   .chips .chip{position:absolute;left:0;top:0}
   .chips .chip2{left:18px;top:14px;width:26px;height:26px;z-index:0}
@@ -399,9 +406,12 @@
   @keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   @keyframes toast-out{to{opacity:0;transform:translateY(8px)}}
 
-  .toolopts{display:flex;align-items:center;gap:20px;padding:8px 16px;flex-wrap:wrap;
+  .toolopts{display:flex;align-items:center;gap:16px;padding:8px 16px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;
     background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;min-height:45px}
-  .toolopts .row{width:auto;justify-content:flex-start}
+  .toolopts .row{width:auto;justify-content:flex-start;flex:none;white-space:nowrap}
+  .toolopts .check{flex:none;white-space:nowrap}
+  .toolopts .rng-btn{display:none}
+  @media (pointer:coarse){ .toolopts .rng-btn{display:grid} }
   .toolopts .row input[type=range]{flex:none;width:120px}
   .toolopts .empty{font-size:12px;color:var(--ink-dim);font-style:italic}
   .toolopts .row[hidden],.toolopts .check[hidden]{display:none}
@@ -489,6 +499,7 @@
         <button class="menu-item" id="openProj" data-close>Ouvrir (.pixel)…</button>
         <button class="menu-item" id="saveProj" data-close>Enregistrer (.pixel)</button>
         <button class="menu-item" id="miExport" data-close>Exporter…</button>
+        <button class="menu-item" id="miCloud" data-close>Sauvegarde cloud (GitHub)…</button>
         <input type="file" id="fileInput" accept=".pixel,.eu-pix,application/json" hidden>
         <div class="menu-sep"></div>
         <button class="menu-item" id="miClose" data-close>Fermer le projet (Ctrl/⌘W)</button>
@@ -617,7 +628,9 @@
     <input type="range" id="brush" min="1" max="32" value="1">
     <input type="number" id="brushN" min="1" max="32" value="1">
     <div class="shapekind-picker" id="brushShapePicker" title="Forme du pinceau"></div>
-    <label class="check" title="Apple Pencil : la taille suit la pression exercée"><input type="checkbox" id="brushPressure"> Pression</label></div>
+    <label class="check" title="Apple Pencil : la taille suit la pression exercée"><input type="checkbox" id="brushPressure"> Pression</label>
+    <span title="Lisse le trait : plus c'est haut, plus le tracé suit le doigt avec retard">Stabilisation</span>
+    <input type="range" id="stabilize" min="0" max="100" value="0"></div>
   <div class="row" id="optShapeKind">Forme <div class="shapekind-picker" id="shapeKindPicker"></div></div>
   <label class="check" id="optFill"><input type="checkbox" id="fillShape"> Formes pleines</label>
   <div class="row" id="optStroke">Épaisseur du trait <input type="range" id="strokeW" min="1" max="6" value="1"><span id="strokeWV" style="font:12px var(--mono);width:16px">1</span></div>
@@ -707,6 +720,8 @@
         <div class="swatches cp-swatches" id="cpSwatches"></div>
       </div>
       <div class="swatches" id="swatches"></div>
+      <div class="cp-label recent-label" id="recentLabel" hidden>Récentes</div>
+      <div class="swatches" id="recentColors" hidden></div>
       <div class="current">
         <div class="chips">
           <button class="chip" id="curChip" title="Couleur principale — clic pour choisir"></button>
@@ -931,6 +946,30 @@
     <div class="foot">
       <button id="sheetCancel">Annuler</button>
       <button class="primary" id="sheetOk" disabled>Importer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="cloudModal">
+  <div class="modal w520" role="dialog" aria-label="Sauvegarde cloud">
+    <header><h2>Sauvegarde cloud (GitHub)</h2><button class="modal-x" id="clClose" title="Fermer" aria-label="Fermer">×</button></header>
+    <div class="body">
+      <p class="note">Les derniers dessins sont enregistrés dans un dépôt GitHub <b>privé</b> à toi. Crée le dépôt (ou utilise le bouton ci-dessous), puis un
+        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">jeton d'accès fin</a> limité à ce dépôt, permission « Contents : lecture et écriture ».
+        Le jeton reste uniquement dans ce navigateur.</p>
+      <div class="pref"><div class="lbl">Dépôt<small>propriétaire/nom</small></div><input class="txt" type="text" id="clRepo" placeholder="supershivas/pixel-studio-saves" spellcheck="false" autocomplete="off" autocapitalize="off"></div>
+      <div class="pref"><div class="lbl">Jeton d'accès</div><input class="txt" type="password" id="clToken" placeholder="github_pat_…" spellcheck="false" autocomplete="off"></div>
+      <div class="pref"><div class="lbl">Branche &amp; dossier</div><div class="inline sm"><input class="txt" type="text" id="clBranch" value="main" size="8" spellcheck="false" autocapitalize="off"><input class="txt" type="text" id="clDir" value="saves" size="8" spellcheck="false" autocapitalize="off"></div></div>
+      <div class="pref"><div class="lbl">Dessins conservés<small>les plus récents ; les plus anciens sont supprimés du dépôt</small></div><input type="number" id="clKeep" min="1" max="20" value="5"></div>
+      <div class="pref"><div class="lbl">Sauvegarde automatique<small>toutes les 2 minutes après une modification</small></div><label class="switch"><input type="checkbox" id="clAuto" checked><span class="sl"></span></label></div>
+      <div class="pref"><div class="lbl" id="clStatus">Non configuré</div>
+        <div class="inline sm"><button id="clTest">Tester</button><button id="clCreate" title="Crée le dépôt privé (nécessite un jeton classique avec la portée « repo »)">Créer le dépôt</button></div></div>
+      <div class="menu-label">Sauvegardes</div>
+      <div id="clList"></div>
+    </div>
+    <div class="foot">
+      <button id="clClose2">Fermer</button>
+      <button class="primary" id="clNow">Sauvegarder maintenant</button>
     </div>
   </div>
 </div>

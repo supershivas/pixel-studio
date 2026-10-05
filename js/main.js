@@ -19,6 +19,8 @@ import "./files.js";
 import "./sheet.js";
 import "./touch.js";
 import "./controls.js";
+import "./cloud.js";
+import "./colordrop.js";
 
 // ---------- Init ----------
 loadPrefs();

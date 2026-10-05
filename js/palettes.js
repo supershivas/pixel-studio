@@ -104,3 +104,23 @@ $("palExOk").onclick=()=>{
   const n=addColors(exColors,$("palExReplace").checked); closeEx();
   showToast(n?`${n} couleur${n>1?"s":""} ajoutée${n>1?"s":""} à la palette.`:"Ces couleurs sont déjà dans la palette.",{type:n?"success":"info"});
 };
+
+// ---------- Couleurs récentes (mises à jour quand une couleur sert à dessiner) ----------
+const RECENT_KEY="eupix.recentColors", RECENT_MAX=12;
+let recent=[]; try{ const r=JSON.parse(localStorage.getItem(RECENT_KEY)); if(Array.isArray(r)) recent=r.filter(c=>/^#[0-9A-F]{6}$/i.test(c)).map(c=>c.toUpperCase()).slice(0,RECENT_MAX); }catch(_){}
+const recentEl=$("recentColors"), recentLabel=$("recentLabel");
+function drawRecent(){
+  recentEl.innerHTML=""; recentLabel.hidden=recentEl.hidden=!recent.length;
+  recent.forEach(c=>{ const b=document.createElement("button"); b.className="sw"+(c===state.color?" sel":""); b.style.background=c; b.dataset.c=c;
+    b.title=c+" — Alt+clic : couleur secondaire";
+    b.addEventListener("click",e=>{ if(e.altKey) setColor2(c); else setColor(c); });
+    recentEl.appendChild(b); });
+}
+export function noteColorUsed(hex){
+  if(!hex) return; hex=hex.toUpperCase();
+  if(recent[0]===hex) return;
+  recent=[hex,...recent.filter(c=>c!==hex)].slice(0,RECENT_MAX);
+  try{ localStorage.setItem(RECENT_KEY,JSON.stringify(recent)); }catch(_){}
+  drawRecent();
+}
+drawRecent();

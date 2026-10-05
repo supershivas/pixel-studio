@@ -3,9 +3,10 @@ import { inBounds, insideRect, render, renderSoon, clampSel, liftSelection, comm
   deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx, layerAt, setLayerAt } from "./helpers.js";
 import { snapshot, undo, redo, abortStroke } from "./history.js";
 import { touchCount, penIsDown } from "./touch.js";
+import { noteColorUsed } from "./palettes.js";
 import { stampPlace, stampGhost, stampSpacing } from "./stamps.js";
 import { stampPattern, patternFill, gradientPreview, gradientApply } from "./patterns.js";
-import { brushOffsets, stamp, line, floodFill, selectSimilar, selectLasso, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
+import { brushOffsets, rectCells, ellipseCells, stamp, line, floodFill, selectSimilar, selectLasso, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
 import { setColor, swapColors, setTool, buildLayers, hitTextLayer, startEditTextLayer, openCanvasText, applyCrop, updateCropFields, prefs } from "./ui.js";
 
 // ---------- Pointer interaction ----------
@@ -18,6 +19,7 @@ export function cancelDrawing(){
   if(pendingDown){ clearTimeout(pendingDown.timer); pendingDown=null; }
   state.stroking=false; state.strokeCache=null;
   if(drawing && state.histPtr>downPtr) abortStroke();       // trait en cours : on le retire de l'historique
+  qsReset(); smooth=null;
   drawing=false; creating=false; state.previewCells=null; state.gradDrag=null; state.lasso=null; state.cropDrag=null; state.selDrag=null; state.txOp=null;
   render();
 }
@@ -38,6 +40,93 @@ export function stampPreview(px,py){
     for(const [dx,dy] of brushOffsets(state.brush,state.brushShape)){
       const nx=bx+dx,ny=by+dy; if(inBounds(nx,ny)) state.previewCells.set(nx+","+ny,state.color); } }
 
+// ---------- Stabilisation du trait ----------
+// Le point utilisé pour tracer suit le pointeur avec du retard (lissage exponentiel) : plus la stabilisation est haute, plus
+// le trait est régulier. Au relâchement, le trait rattrape le point réel.
+let smooth=null;
+const STROKE_TOOLS=new Set(["pencil","eraser","dither"]);
+const rawCell=e=>{ const r=view.getBoundingClientRect(); return [(e.clientX-r.left)/state.zoom,(e.clientY-r.top)/state.zoom]; };
+function strokeCell(e){
+  const [rx,ry]=rawCell(e);
+  if(!(state.stabilize>0) || !smooth) return [Math.floor(rx),Math.floor(ry)];
+  const k=1-0.93*state.stabilize/100;
+  smooth.x+=(rx-smooth.x)*k; smooth.y+=(ry-smooth.y)*k;
+  return [Math.floor(smooth.x),Math.floor(smooth.y)];
+}
+function strokeSegment(x0,y0,x1,y1){
+  const L=state.layers[state.active];
+  if(state.tool==="dither") line(x0,y0,x1,y1,(px,py)=>stampPattern(px,py,L));
+  else if(state.tool==="pencil") line(x0,y0,x1,y1,(px,py)=>penStep(px,py,L));
+  else if(state.tool==="eraser") line(x0,y0,x1,y1,(px,py)=>stamp(px,py,null,L));
+}
+
+// ---------- QuickShape : maintenir le doigt à la fin d'un trait pour le redresser ----------
+// Reconnaît une ligne, une ellipse (ou un cercle) ou un rectangle dans le tracé ; le tracé libre est remplacé par la forme
+// parfaite (aperçu), qu'on peut encore ajuster en glissant avant de relâcher.
+let qsPts=[], qsTimer=0, qsAnchor=null, qs=null;
+function qsReset(){ clearTimeout(qsTimer); qsTimer=0; qsPts=[]; qsAnchor=null; qs=null; }
+const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+function recognizeShape(P){
+  if(P.length<6) return null;
+  let len=0; for(let i=1;i<P.length;i++) len+=dist(P[i-1],P[i]);
+  if(len<8) return null;
+  const start=P[0], end=P[P.length-1];
+  const xs=P.map(p=>p[0]), ys=P.map(p=>p[1]), minx=Math.min(...xs), maxx=Math.max(...xs), miny=Math.min(...ys), maxy=Math.max(...ys);
+  const w=maxx-minx, h=maxy-miny;
+  if(dist(start,end)>=0.2*len){                          // tracé ouvert : une ligne ?
+    const d=dist(start,end); if(d<4) return null;
+    let dev=0; for(const p of P) dev=Math.max(dev,Math.abs((end[0]-start[0])*(start[1]-p[1])-(start[0]-p[0])*(end[1]-start[1]))/d);
+    return dev<=Math.max(1,0.06*d) ? {kind:"line",x0:start[0],y0:start[1],x1:end[0],y1:end[1]} : null;
+  }
+  if(w<4||h<4) return null;                              // tracé fermé : ellipse ou rectangle ?
+  const N=72, R=[], step=len/N; let acc=0, idx=1, cur=[...P[0]];
+  R.push([...cur]);
+  while(R.length<N && idx<P.length){ const seg=dist(cur,P[idx]); if(acc+seg>=step){ const t=(step-acc)/seg; cur=[cur[0]+(P[idx][0]-cur[0])*t,cur[1]+(P[idx][1]-cur[1])*t]; R.push([...cur]); acc=0; } else { acc+=seg; cur=[...P[idx]]; idx++; } }
+  const cx=(minx+maxx)/2, cy=(miny+maxy)/2, a=w/2, b=h/2;
+  let ee=0, re=0;
+  for(const p of R){ ee+=Math.abs(Math.hypot((p[0]-cx)/a,(p[1]-cy)/b)-1);
+    re+=Math.min(Math.min(Math.abs(p[0]-minx),Math.abs(p[0]-maxx))/w, Math.min(Math.abs(p[1]-miny),Math.abs(p[1]-maxy))/h)*2; }
+  ee/=R.length; re/=R.length;
+  if(ee<0.14 && ee<=re) return {kind:"ellipse",cx,cy,a,b,circle:Math.abs(a-b)/Math.max(a,b)<0.2};
+  if(re<0.07) return {kind:"rect",cx,cy,a,b};
+  return null;
+}
+function quickCells(sh,cb){
+  if(sh.kind==="line"){ line(Math.floor(sh.x0),Math.floor(sh.y0),Math.floor(sh.x1),Math.floor(sh.y1),cb); return; }
+  let a=sh.a, b=sh.b; if(sh.circle){ a=b=(a+b)/2; }
+  const x0=Math.floor(sh.cx-a), x1=Math.floor(sh.cx+a-0.001), y0=Math.floor(sh.cy-b), y1=Math.floor(sh.cy+b-0.001);
+  if(sh.kind==="ellipse") ellipseCells(x0,y0,x1,y1,false,cb); else rectCells(x0,y0,x1,y1,false,cb);
+}
+function showQuickShape(){
+  state.previewCells=new Map();
+  quickCells(qs,(px,py)=>stampPreview(px,py)); renderSoon();
+}
+function tryQuickShape(){
+  qsTimer=0;
+  if(!drawing || state.tool!=="pencil" || qs) return;
+  const sh=recognizeShape(qsPts); if(!sh) return;
+  if(state.histPtr>downPtr) abortStroke();               // le tracé libre disparaît, remplacé par la forme parfaite
+  state.stroking=false; state.strokeCache=null;
+  qs=sh; qs.d0=0;
+  const last=qsPts[qsPts.length-1];
+  if(sh.kind!=="line") qs.d0=Math.max(1,dist(last,[sh.cx,sh.cy]));
+  qs.a0=sh.a; qs.b0=sh.b;
+  showQuickShape(); setHint("QuickShape — glisse pour ajuster, relâche pour valider");
+}
+function updateQuickShape(e){
+  const [rx,ry]=rawCell(e);
+  if(qs.kind==="line"){ qs.x1=rx; qs.y1=ry; }
+  else { const s=Math.max(0.2,dist([rx,ry],[qs.cx,qs.cy])/qs.d0); qs.a=qs.a0*s; qs.b=qs.b0*s; }
+  showQuickShape();
+}
+function commitQuickShape(){
+  const L=state.layers[state.active], sh=qs; qsReset();
+  snapshot("QuickShape");
+  state.previewCells=null;
+  quickCells(sh,(px,py)=>stamp(px,py,state.color,L));
+  drawing=false; state.thumbsDirty=true; buildLayers(); render();
+}
+
 // ---------- Crayon : « pixel perfect » (retire les coins en L) et ligne droite avec Maj ----------
 let ppPath=[], ppOrig=new Map(), lastPen=null;   // lastPen = dernier point tracé {x,y,id} pour Maj+clic
 function penStep(px,py,L){
@@ -55,6 +144,9 @@ function penStep(px,py,L){
 function onViewDown(e){
   state.pressure = e.pointerType==="pen" ? (e.pressure||0.5) : 0.5;
   state.stroking = state.tool==="pencil"||state.tool==="eraser"||state.tool==="dither"||state.tool==="stamp";   // active le cache de rendu des calques sous l'actif
+  { const [rx,ry]=rawCell(e); smooth=STROKE_TOOLS.has(state.tool)?{x:rx,y:ry}:null;
+    qsReset(); if(state.tool==="pencil"){ qsPts=[[rx,ry]]; qsAnchor=[rx,ry]; } }
+  if(state.tool==="pencil"||state.tool==="dither"||state.tool==="fill"||state.tool==="gradient"||state.tool==="shape"||state.tool==="text") noteColorUsed(state.color);
   if(spaceHeld || e.button===1) return;   // laisser le pan (géré par la scène)
   if(e.pointerType==="touch" && (touchCount()>1 || penIsDown())) return;   // geste à plusieurs doigts, ou paume pendant que le stylet dessine
   downPtr=state.histPtr;
@@ -123,7 +215,8 @@ view.addEventListener("pointerdown",e=>{
 view.addEventListener("pointermove",e=>{
   state.pressure = e.pointerType==="pen" ? (e.pressure||0.5) : 0.5;
   if(pendingDown){ if(Math.hypot(e.clientX-pendingDown.e.clientX,e.clientY-pendingDown.e.clientY)>3) flushDown(); else return; }
-  const [x,y]=cellFromEvent(e);
+  const [x,y]=(drawing && smooth && STROKE_TOOLS.has(state.tool)) ? strokeCell(e) : cellFromEvent(e);
+  if(qs && drawing){ updateQuickShape(e); return; }
   // aperçu fantôme du texte
   if(state.tool==="text" && !drawing){ setHint(inBounds(x,y)?(x+" , "+y+"   ·   texte"):""); return; }
 
@@ -187,7 +280,9 @@ view.addEventListener("pointermove",e=>{
     return; }
   if(state.tool==="gradient" && state.gradDrag){ state.gradDrag.x1=x; state.gradDrag.y1=y; gradientPreview(); setHint("dégradé "+state.gradDrag.x0+","+state.gradDrag.y0+" → "+x+","+y); return; }
   if(state.tool==="dither"){ line(lastX,lastY,x,y,(px,py)=>stampPattern(px,py,state.layers[state.active])); lastX=x;lastY=y; renderSoon(); }
-  else if(state.tool==="pencil"){ const L=state.layers[state.active]; line(lastX,lastY,x,y,(px,py)=>penStep(px,py,L)); lastX=x;lastY=y; renderSoon(); }
+  else if(state.tool==="pencil"){ const L=state.layers[state.active]; line(lastX,lastY,x,y,(px,py)=>penStep(px,py,L)); lastX=x;lastY=y; renderSoon();
+    const [rx,ry]=rawCell(e); qsPts.push([rx,ry]);                                        // QuickShape : le doigt s'immobilise ≈ 0,6 s
+    if(!qsAnchor || dist([rx,ry],qsAnchor)>1.6){ qsAnchor=[rx,ry]; clearTimeout(qsTimer); qsTimer=setTimeout(tryQuickShape,600); } }
   else if(state.tool==="eraser"){ line(lastX,lastY,x,y,(px,py)=>stamp(px,py,null,state.layers[state.active])); lastX=x;lastY=y; renderSoon(); }
   else if(state.tool==="shape" && state.shapeKind==="line"){ state.previewCells=new Map(); line(startX,startY,x,y,stampPreview); renderSoon(); }
   setHint(inBounds(x,y)?(x+" , "+y):"");
@@ -200,6 +295,10 @@ view.addEventListener("pointerup",e=>{
   state.stroking=false; state.strokeCache=null;
   if(!drawing) return;
   const [x,y]=cellFromEvent(e);
+  if(qs){ commitQuickShape(); smooth=null; return; }
+  clearTimeout(qsTimer); qsTimer=0;
+  if(smooth && state.stabilize>0 && STROKE_TOOLS.has(state.tool)){ strokeSegment(lastX,lastY,x,y); lastX=x; lastY=y; }   // le trait rattrape le point réel
+  smooth=null;
   if(state.tool==="gradient"){ drawing=false; gradientApply(); return; }
   if(state.tool==="pencil") lastPen={x:lastX,y:lastY,id:state.layers[state.active].id};
   if(state.tool==="lasso" && state.lasso){ const pts=state.lasso; state.lasso=null; drawing=false;

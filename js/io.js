@@ -42,7 +42,36 @@ function svgString(ls,scale,bg){
     `<svg xmlns="http://www.w3.org/2000/svg" width="${state.W*scale}" height="${state.H*scale}" `+
     `viewBox="0 0 ${state.W} ${state.H}" shape-rendering="crispEdges">\n${rects}\n</svg>`;
 }
-function download(url,name){ const a=document.createElement("a"); a.href=url; a.download=name; a.click(); }
+// ---------- Enregistrer un fichier (bureau : téléchargement ; iPad / iPhone : feuille de partage) ----------
+// Sur iOS / iPadOS, un lien « download » vers une URL data: ouvre l'image dans l'onglet (ou quitte l'app installée) et le
+// fichier est perdu. On passe donc par la feuille de partage (« Enregistrer dans Fichiers », « Enregistrer l'image »,
+// AirDrop…) ; si le navigateur la refuse (geste utilisateur expiré), un bouton dans la notification la rouvre.
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+const MIME_BY_EXT={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",svg:"image/svg+xml",gif:"image/gif",txt:"text/plain",json:"application/json",zip:"application/zip",pixel:"application/json",gz:"application/gzip"};
+function anchorDownload(blob,name){
+  const url=URL.createObjectURL(blob), a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+export async function saveBlob(blob,name){
+  const ext=(name.split(".").pop()||"").toLowerCase();
+  const file=new File([blob],name,{type:blob.type||MIME_BY_EXT[ext]||"application/octet-stream"});
+  if(isIOS && navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+    const share=()=>navigator.share({files:[file],title:name});
+    try{ await share(); return true; }
+    catch(err){
+      if(err && err.name==="AbortError") return false;                       // l'utilisateur a fermé la feuille
+      showToast("Le fichier est prêt : touche « Enregistrer » pour l'envoyer vers Fichiers ou Photos.",{ type:"info", duration:60000,
+        actionLabel:"Enregistrer", onAction:()=>{ share().catch(()=>{}); } });
+      return false;
+    }
+  }
+  anchorDownload(blob,name); return true;
+}
+// url : Blob, URL blob: ou data:
+async function download(src,name){
+  const blob = src instanceof Blob ? src : await (await fetch(src)).blob();
+  return saveBlob(blob,name);
+}
 function stamp2(){ return new Date().toISOString().slice(0,10); }
 function safeName(s){ return (s||"").trim().replace(/[^\w\-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40)||"carte"; }
 
@@ -368,14 +397,12 @@ export function buildProjectObject(){
   return { format:"pixel", version:8, name:state.projectName, w:state.W, h:state.H, guides:state.guides, rulerGuides:state.rulerGuides, customColors:state.customColors, active:state.active,
     layers:encodeLayers(state.layers), frames:framesSnapshotForSave() };
 }
-export function saveProjectFile(){
+export async function saveProjectFile(){
   const proj=buildProjectObject();
   const blob=new Blob([JSON.stringify(proj)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  download(url,`${safeName(state.projectName)}_${state.W}x${state.H}_${stamp2()}.pixel`);
-  setTimeout(()=>URL.revokeObjectURL(url),3000);
+  const saved=await saveBlob(blob,`${safeName(state.projectName)}_${state.W}x${state.H}_${stamp2()}.pixel`);
   pushRecent();
-  showToast("Projet enregistré.",{type:"success"});
+  if(saved) showToast(isIOS?"Projet prêt : choisis « Enregistrer dans Fichiers ».":"Projet enregistré.",{type:"success"});
 }
 document.getElementById("saveProj").onclick=saveProjectFile;
 document.getElementById("openProj").onclick=()=>document.getElementById("fileInput").click();
@@ -394,7 +421,7 @@ document.getElementById("fileInput").onchange=e=>{
 // rouvrir sans redemander le fichier d'origine. Mis à jour aux points de sauvegarde
 // explicites (Enregistrer, Ouvrir, Fermer le projet) — jamais à chaque frappe.
 const RECENTS_KEY="eupix.recents", RECENTS_MAX=8;
-function makeThumb(){
+export function makeThumb(){
   const src=flattenCanvas(state.layers,1,null);
   const maxDim=120, sc=Math.min(1,maxDim/Math.max(state.W,state.H));
   const tw=Math.max(1,Math.round(state.W*sc)), th=Math.max(1,Math.round(state.H*sc));

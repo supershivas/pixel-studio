@@ -22,6 +22,8 @@
   - `files.js` — glisser-déposer et coller une image
   - `update.js` — détection de mise à jour et service worker
   - `sheet.js` — import d'une planche de sprites (découpe en frames)
+  - `cloud.js` — sauvegarde des derniers dessins dans un dépôt GitHub privé
+  - `colordrop.js` — glisser une couleur sur le dessin pour remplir
   - `touch.js` — tablettes : gestes à plusieurs doigts, pas de menu de sélection du système
   - `controls.js` — champs numériques (largeur selon les chiffres) et curseurs (boutons − / +, réglage fin)
   - `dither.js` — matrices de Bayer partagées

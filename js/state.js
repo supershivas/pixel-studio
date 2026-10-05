@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.22.0";
+export const APP_VERSION = "1.23.0";
 
 // ---------- Palette de base ----------
 // Ordre d'affichage (grille de 6 colonnes) : neutres (blanc, noir, [transparent ajouté par l'UI],
@@ -63,6 +63,7 @@ export const state = {
   pixelPerfect: false,                          // crayon : supprime les coins en L
   gradShape: "linear", gradStyle: "bayer4", gradSteps: 4, gradClear: false, gradPainted: false, gradDrag: null,
   wrap: "none",                                 // dessin en boucle sur les bords : none | x | y | xy
+  stabilize: 0,                                  // stabilisation du trait 0–100 (lissage par retard du pointeur)
   brushShape: "square", brushPressure: false, pressure: 0.5,   // forme du pinceau, taille modulée par la pression du stylet
   ditherPattern: "checker", ditherBg: "clear", ditherMode: "brush",
 

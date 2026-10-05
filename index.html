@@ -85,8 +85,7 @@
   .menu-sep{height:1px;background:var(--line);margin:5px 4px}
   .menu-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);padding:4px 10px 2px}
   .menu-field{display:flex;align-items:center;gap:6px;padding:6px 10px;font-size:12px;color:var(--ink-dim)}
-  .menu-field input{width:56px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:4px 6px;font-family:var(--mono);font-size:12px}
-  .menu-field input{width:56px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:4px 6px;font-family:var(--mono);font-size:12px}
+  .menu-field input{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:4px 6px;font-family:var(--mono);font-size:12px}
   .menu-field select{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 6px;font-size:12px}
   .menu-check{display:flex;align-items:center;gap:8px;padding:7px 10px;font-size:13px;color:var(--ink);cursor:pointer;border-radius:6px}
   .menu-check:hover{background:var(--panel-2)}
@@ -134,8 +133,30 @@
   @media (max-width:640px){ .fx-body{flex-direction:column}
     .fx-nav{width:100%;flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:1px solid var(--line)} }
   .pref input[type=color]{width:38px;height:26px;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer}
-  .pref input[type=number]{width:64px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)}
-  .pref input[type=range]{width:130px;accent-color:var(--accent)}
+  .pref input[type=number]{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-family:var(--mono)}
+  .pref input[type=range]{width:150px}
+  /* curseurs : piste et poignée plus grosses (précision au doigt), réglage fin par déplacement vertical et boutons − / + (controls.js) */
+  input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:32px;margin:0;touch-action:none;cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--line)}
+  input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--line)}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);border:2px solid var(--bg)}
+  input[type=range]:focus-visible{outline:none}
+  input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px var(--accent-blue)}
+  .rng{display:inline-flex;align-items:center;gap:4px;flex:none}
+  .rng-btn{width:26px;height:26px;padding:0;display:grid;place-items:center;font-size:15px;line-height:1;color:var(--ink-dim)}
+  .rng-tip{position:fixed;z-index:400;pointer-events:none;transform:translate(-50%,-100%);padding:4px 9px;border-radius:7px;background:var(--panel);
+    border:1px solid var(--accent);color:var(--ink);font:12px var(--mono);white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+  .rng-tip small{color:var(--ink-dim);margin-left:6px}
+  @media (pointer:coarse){
+    input[type=range]{height:44px}
+    input[type=range]::-webkit-slider-runnable-track{height:8px}
+    input[type=range]::-webkit-slider-thumb{width:30px;height:30px;margin-top:-11px}
+    input[type=range]::-moz-range-thumb{width:26px;height:26px}
+    .rng-btn{width:36px;height:36px;font-size:18px}
+    /* 16 px minimum : sinon Safari zoome la page à la prise de focus d'un champ */
+    input[type=text],input[type=number],select,textarea{font-size:16px}
+  }
   .switch{position:relative;width:42px;height:24px;flex:0 0 auto}
   .switch input{opacity:0;width:0;height:0}
   .switch .sl{position:absolute;inset:0;background:var(--panel-2);border:1px solid var(--line);border-radius:999px;transition:.15s;cursor:pointer}
@@ -151,7 +172,6 @@
   .exp-sum.over{color:var(--danger)}
   .fxsw{width:30px;height:26px;border-radius:6px;border:1px solid var(--line);cursor:pointer;padding:0;background:#141428}
   .fxsw:hover{border-color:var(--ink)}
-  .pref input[type=number]{width:52px}
   #fxModal .pref, #fxModal .pref .lbl{font-size:13px}
   #canvasText{position:fixed;z-index:80;display:none;width:2px;height:2px;padding:0;margin:0;border:0;
     opacity:0;background:transparent;color:transparent;caret-color:transparent;resize:none;overflow:hidden;white-space:pre}
@@ -163,7 +183,8 @@
     background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
     border-radius:6px;padding:5px 7px;font-family:var(--mono);font-size:12px;
   }
-  input[type=number]{width:62px}
+  /* largeur d'un champ numérique : nombre de chiffres attendu (--digits, posé par controls.js d'après max) + flèches et marges */
+  input[type=number]{width:calc(var(--digits,5)*1ch + 32px);flex:none}
   button{
     font-family:var(--sans);font-size:12px;color:var(--ink);cursor:pointer;
     background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
@@ -313,6 +334,8 @@
     background:var(--panel-2);border:1px solid var(--line);cursor:grab}
   .layer:active{cursor:grabbing}
   .layer.dragging{opacity:.4}
+  .layer .grip{touch-action:none;padding:8px 6px;margin:-8px -4px}
+  .layer-ghost{position:fixed;z-index:300;margin:0;pointer-events:none;opacity:.92;transform:translate(-50%,-50%);box-shadow:0 10px 24px rgba(0,0,0,.55);box-sizing:border-box}
   .layer.drop-above{box-shadow:inset 0 3px 0 var(--accent)}
   .layer.drop-below{box-shadow:inset 0 -3px 0 var(--accent)}
   .layer.drop-into{box-shadow:inset 0 0 0 2px var(--accent)}
@@ -379,7 +402,7 @@
   .toolopts{display:flex;align-items:center;gap:20px;padding:8px 16px;flex-wrap:wrap;
     background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;min-height:45px}
   .toolopts .row{width:auto;justify-content:flex-start}
-  .toolopts .row input[type=range]{flex:none;width:90px}
+  .toolopts .row input[type=range]{flex:none;width:120px}
   .toolopts .empty{font-size:12px;color:var(--ink-dim);font-style:italic}
   .toolopts .row[hidden],.toolopts .check[hidden]{display:none}
   .home-modal{width:min(760px,94vw)}
@@ -411,8 +434,6 @@
 
   .timeline{display:flex;align-items:center;gap:14px;padding:8px 16px;flex:0 0 auto;
     background:var(--panel);border-top:1px solid var(--line);overflow-x:auto}
-  .timeline input[type=number]{width:48px}
-  .timeline #frameDelay{width:66px}
   .frames{display:flex;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;padding:2px 10px}
   .frame{position:relative;flex:0 0 auto;width:40px;height:56px;border-radius:5px;cursor:grab;
     border:2px solid var(--line);background:
@@ -594,7 +615,7 @@
 <div class="toolopts" id="toolOpts">
   <div class="row" id="optBrush">Taille du crayon / gomme
     <input type="range" id="brush" min="1" max="32" value="1">
-    <input type="number" id="brushN" min="1" max="32" value="1" style="width:48px"></div>
+    <input type="number" id="brushN" min="1" max="32" value="1"></div>
   <div class="row" id="optShapeKind">Forme <div class="shapekind-picker" id="shapeKindPicker"></div></div>
   <label class="check" id="optFill"><input type="checkbox" id="fillShape"> Formes pleines</label>
   <div class="row" id="optStroke">Épaisseur du trait <input type="range" id="strokeW" min="1" max="6" value="1"><span id="strokeWV" style="font:12px var(--mono);width:16px">1</span></div>
@@ -633,10 +654,10 @@
     </select></div>
   <label class="check" id="optWand"><input type="checkbox" id="wandContiguous" checked> Pixels contigus uniquement</label>
   <div class="row" id="optCrop">
-    X <input type="number" id="cropX" min="0" style="width:56px">
-    Y <input type="number" id="cropY" min="0" style="width:56px">
-    L <input type="number" id="cropW" min="1" style="width:56px">
-    H <input type="number" id="cropH" min="1" style="width:56px">
+    X <input type="number" id="cropX" min="0">
+    Y <input type="number" id="cropY" min="0">
+    L <input type="number" id="cropW" min="1">
+    H <input type="number" id="cropH" min="1">
     <button class="mini" id="cropApply">Rogner</button>
   </div>
   <div id="textOpts" hidden>
@@ -838,8 +859,8 @@
             <label class="switch"><input type="checkbox" id="fxShadowOn"><span class="sl"></span></label></div>
           <div class="pref"><div class="lbl">Décalage X / Y &amp; couleur</div>
             <div class="inline sm">
-              <input type="number" id="fxShadowDX" value="1" style="width:52px">
-              <input type="number" id="fxShadowDY" value="1" style="width:52px">
+              <input type="number" id="fxShadowDX" value="1">
+              <input type="number" id="fxShadowDY" value="1">
               <button class="fxsw" id="fxShadowColor"></button></div></div>
         </div>
       </div>

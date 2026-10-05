@@ -23,6 +23,7 @@
   - `update.js` — détection de mise à jour et service worker
   - `sheet.js` — import d'une planche de sprites (découpe en frames)
   - `touch.js` — tablettes : gestes à plusieurs doigts, pas de menu de sélection du système
+  - `controls.js` — champs numériques (largeur selon les chiffres) et curseurs (boutons − / +, réglage fin)
   - `dither.js` — matrices de Bayer partagées
   - `ui.js` — outils, palette, sélecteur de couleur, calques, modales
   - `frames.js` — frames de l'animation

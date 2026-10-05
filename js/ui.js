@@ -405,8 +405,8 @@ buildSwatches();
 
 // ---------- Layers UI ----------
 const layersEl=document.getElementById("layers");
-let dragId=null;
-function clearDropMarks(){ [...layersEl.children].forEach(el=>el.classList.remove("drop-above","drop-below","drop-into")); }
+function clearDropMarks(){ [...layersEl.children].forEach(el=>el.classList.remove("drop-above","drop-below","drop-into"));
+  document.getElementById("addLayerBtn").classList.remove("drop-hot"); document.getElementById("delLayerBtn").classList.remove("drop-hot"); }
 // bloc contigu occupé par un calque (une seule case) ou par un dossier + ses membres (l'en-tête est au sommet visuel = index le plus haut)
 function blockOf(L){
   const i=state.layers.indexOf(L);
@@ -460,12 +460,12 @@ function selectLayer(L){
 // renommage : le nom est un simple texte, échangé contre un champ de saisie au double-clic
 function startRename(L,el,row){
   const inp=document.createElement("input"); inp.className="nm"; inp.value=L.name; inp.spellcheck=false;
-  el.replaceWith(inp); row.draggable=false;
+  el.replaceWith(inp);
   inp.focus(); inp.select();
   let done=false;
   const finish=commit=>{ if(done) return; done=true;
     if(commit){ const v=inp.value.trim(); if(v) L.name=v; }
-    row.draggable=true; buildLayers(); };
+    buildLayers(); };
   inp.addEventListener("blur",()=>finish(true));
   inp.addEventListener("click",e=>e.stopPropagation());
   inp.addEventListener("dblclick",e=>e.stopPropagation());
@@ -486,25 +486,74 @@ export function startRenameLayer(L){
   const el=row && row.querySelector("span.nm");
   if(el) startRename(L,el,row);
 }
+// ---------- Réordonner les calques au pointeur (souris, stylet, doigt) ----------
+// Souris / stylet : on glisse n'importe où sur la ligne (après quelques pixels). Doigt : on prend la poignée ⠿
+// (la ligne garde le défilement vertical). Cibles : une ligne (au-dessus / en dessous / dans le dossier),
+// le bouton + (dupliquer) et la poubelle (supprimer). Remplace le glisser-déposer HTML5, inopérant au toucher.
+let lpress=null, lghost=null, layerSuppress=false;
+function layerDropTarget(x,y){
+  const el=document.elementFromPoint(x,y), t=el&&el.closest?el:null; if(!t) return null;
+  if(t.closest("#addLayerBtn")) return {kind:"dup",el:document.getElementById("addLayerBtn")};
+  if(t.closest("#delLayerBtn")) return {kind:"del",el:document.getElementById("delLayerBtn")};
+  const row=t.closest(".layer");
+  if(row && layersEl.contains(row) && +row.dataset.id!==lpress.id){
+    const tgt=state.layers.find(l=>l.id===+row.dataset.id), src=state.layers.find(l=>l.id===lpress.id);
+    return {kind:"row",el:row,id:+row.dataset.id,zone:dropZone({clientY:y},row,!!(tgt&&tgt.isGroup),!!(src&&src.isGroup))};
+  }
+  return null;
+}
+function endLayerPress(){
+  if(!lpress) return;
+  window.removeEventListener("pointermove",onLayerMove); window.removeEventListener("pointerup",onLayerUp); window.removeEventListener("pointercancel",onLayerUp);
+  if(lghost){ lghost.remove(); lghost=null; }
+  lpress.row.classList.remove("dragging"); clearDropMarks(); lpress=null;
+}
+function onLayerMove(e){
+  if(!lpress||e.pointerId!==lpress.pid) return;
+  if(!lpress.dragging){
+    if(Math.hypot(e.clientX-lpress.x,e.clientY-lpress.y)<=5) return;
+    lpress.dragging=true; lpress.row.classList.add("dragging");
+    lghost=lpress.row.cloneNode(true); lghost.classList.add("layer-ghost"); lghost.style.width=lpress.row.offsetWidth+"px";
+    const c0=lpress.row.querySelector("canvas.thumb"), c1=lghost.querySelector("canvas.thumb"); if(c0&&c1) c1.getContext("2d").drawImage(c0,0,0);
+    document.body.appendChild(lghost);
+  }
+  lghost.style.left=e.clientX+"px"; lghost.style.top=e.clientY+"px";
+  clearDropMarks();
+  const t=layerDropTarget(e.clientX,e.clientY);
+  if(!t) return;
+  if(t.kind==="row") t.el.classList.add(t.zone==="above"?"drop-above":t.zone==="below"?"drop-below":"drop-into");
+  else t.el.classList.add("drop-hot");
+}
+function onLayerUp(e){
+  if(!lpress||e.pointerId!==lpress.pid) return;
+  const was=lpress.dragging, id=lpress.id;
+  const t = was && e.type==="pointerup" ? layerDropTarget(e.clientX,e.clientY) : null;
+  if(was){ layerSuppress=true; setTimeout(()=>layerSuppress=false,0); }
+  endLayerPress();
+  if(!t) return;
+  if(t.kind==="row") moveLayer(id,t.id,t.zone);
+  else { const i=state.layers.findIndex(L=>L.id===id); if(i<0) return; const L=state.layers[i];
+    if(t.kind==="dup"){ if(!L.isGroup) duplicateLayer(i); }
+    else if(L.isGroup) deleteGroup(L); else deleteLayer(i); }
+}
+function startLayerPress(e,row,L){
+  if(e.button!==0 || e.target.closest("button,input")) return;
+  if(e.pointerType==="touch" && !e.target.closest(".grip")) return;
+  endLayerPress();
+  lpress={ id:L.id, row, x:e.clientX, y:e.clientY, pid:e.pointerId, dragging:false };
+  window.addEventListener("pointermove",onLayerMove); window.addEventListener("pointerup",onLayerUp); window.addEventListener("pointercancel",onLayerUp);
+}
 function layerRow(L,indent){
   const row=document.createElement("div");
   row.className="layer"+(indent?" grouped":"")+(state.layers.indexOf(L)===state.active?" active":"")+(L.img?" imglayer":"");
-  row.draggable=true; row.dataset.id=L.id;
+  row.dataset.id=L.id;
   const grip=document.createElement("span"); grip.className="grip"; grip.textContent="⠿"; grip.title="Glisser pour réordonner";
   const vis=document.createElement("button");
   vis.className="vis"+(L.visible?" on":""); vis.title="Visibilité";
   vis.innerHTML=L.visible?'<svg width="16" height="16" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 4l16 16" stroke="currentColor" stroke-width="1.6"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".5"/></svg>';
   vis.addEventListener("click",e=>{e.stopPropagation();L.visible=!L.visible;buildLayers();render();});
-  row.addEventListener("dragstart",e=>{ dragId=L.id; row.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",String(L.id));}catch(_){} });
-  row.addEventListener("dragend",()=>{ row.classList.remove("dragging"); clearDropMarks(); dragId=null; });
-  row.addEventListener("dragover",e=>{ if(dragId==null||dragId===L.id) return; e.preventDefault();
-    const zone=dropZone(e,row,!!L.isGroup, state.layers.find(l=>l.id===dragId)?.isGroup);
-    clearDropMarks(); row.classList.add(zone==="above"?"drop-above":zone==="below"?"drop-below":"drop-into"); });
-  row.addEventListener("dragleave",()=>row.classList.remove("drop-above","drop-below","drop-into"));
-  row.addEventListener("drop",e=>{ e.preventDefault();
-    const src=state.layers.find(l=>l.id===dragId);
-    const zone=dropZone(e,row,!!L.isGroup, src&&src.isGroup);
-    clearDropMarks(); if(dragId!=null) moveLayer(dragId,L.id,zone); dragId=null; });
+  row.addEventListener("click",e=>{ if(layerSuppress) e.stopImmediatePropagation(); },true);   // pas de sélection après un glisser
+  row.addEventListener("pointerdown",e=>startLayerPress(e,row,L));
   row.addEventListener("contextmenu",e=>{ e.preventDefault(); e.stopPropagation();
     selectLayer(L); openLayerContextMenu(e.clientX,e.clientY); });
   return {row,grip,vis};
@@ -627,17 +676,8 @@ document.getElementById("fxGoColor").onclick=()=>openLayerFx("color");
 document.getElementById("fxGoMirror").onclick=()=>openLayerFx("mirror");
 document.getElementById("fxGoStroke").onclick=()=>openLayerFx("stroke");
 document.getElementById("fxGoShadow").onclick=()=>openLayerFx("shadow");
-// cibles de dépôt : glisser un calque sur + = dupliquer, sur poubelle = supprimer
-function makeLayerDrop(btn, action){
-  btn.addEventListener("dragover",e=>{ if(dragId==null) return; e.preventDefault(); btn.classList.add("drop-hot"); });
-  btn.addEventListener("dragleave",()=>btn.classList.remove("drop-hot"));
-  btn.addEventListener("drop",e=>{ e.preventDefault(); btn.classList.remove("drop-hot");
-    const id=dragId; dragId=null; const i=state.layers.findIndex(L=>L.id===id); if(i>=0) action(i); });
-}
 document.getElementById("addGroup").onclick=addGroupAction;
 document.getElementById("addGroupBtn").onclick=addGroupAction;
-makeLayerDrop(document.getElementById("addLayerBtn"), i=>{ const L=state.layers[i]; if(!L||L.isGroup) return; duplicateLayer(i); });
-makeLayerDrop(document.getElementById("delLayerBtn"), i=>{ const L=state.layers[i]; if(!L) return; if(L.isGroup) deleteGroup(L); else deleteLayer(i); });
 document.getElementById("clearLayer").onclick=()=>{ const L=state.layers[state.active]; if(L.img) return;
   if(L.locked){ showToast("Calque verrouillé — déverrouille-le dans ses options (⚙).",{type:"warn"}); return; }
   snapshot(); L.data.fill(null); L.ox=0; L.oy=0; render(); buildLayers(); };
@@ -790,7 +830,16 @@ presetSel.onchange=()=>{
   resize(p.w,p.h);
 };
 document.getElementById("guideToggle").onchange=render;
-document.getElementById("applyWH").onclick=()=>{ resize(+document.getElementById("cw").value,+document.getElementById("ch").value); };
+// Appliquer, Entrée dans un champ, ou Terminé : la taille saisie s'applique (avant, il fallait cliquer précisément sur « Appliquer »)
+function applySizeFields(){
+  const w=Math.round(+document.getElementById("cw").value), h=Math.round(+document.getElementById("ch").value);
+  if(!(w>0&&h>0)) return false;
+  const changed=resize(w,h);
+  document.getElementById("cw").value=state.W; document.getElementById("ch").value=state.H;
+  return changed;
+}
+document.getElementById("applyWH").onclick=applySizeFields;
+["cw","ch"].forEach(id=>document.getElementById(id).addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter"){ e.preventDefault(); applySizeFields(); } }));
 function remapData(d,w,h){ const nd=new Array(w*h).fill(null);
   for(let y=0;y<Math.min(h,state.H);y++) for(let x=0;x<Math.min(w,state.W);x++) nd[y*w+x]=d[y*state.W+x];
   return nd; }
@@ -831,6 +880,27 @@ function loadCroppedImages(cache){
     };
     im.src=url;
   });
+}
+// Efface (rend transparente) une zone rectangulaire du dessin sur un calque image : la zone, en cellules,
+// est reportée dans l'image source, qui est redessinée sans ces pixels (même technique que le rognage).
+export function eraseImageRect(L,r){
+  const src=L._imgEl; if(!src || !src.naturalWidth || !L.img) return;
+  const nw=src.naturalWidth, nh=src.naturalHeight, s=Math.min(state.W/nw,state.H/nh), w=nw*s, h=nh*s;
+  const left=(state.W-w)/2+(L.ox||0), top=(state.H-h)/2+(L.oy||0);
+  const x0=Math.max(0,Math.floor((r.x-left)/s)), y0=Math.max(0,Math.floor((r.y-top)/s));
+  const x1=Math.min(nw,Math.ceil((r.x+r.w-left)/s)), y1=Math.min(nh,Math.ceil((r.y+r.h-top)/s));
+  if(x1<=x0||y1<=y0){ setHint("La sélection ne recouvre pas l'image"); return; }
+  snapshot("Effacer dans l'image");
+  const c=document.createElement("canvas"); c.width=nw; c.height=nh;
+  const g=c.getContext("2d"); g.drawImage(src,0,0); g.clearRect(x0,y0,x1-x0,y1-y0);
+  const url=c.toDataURL("image/png");
+  L.img={dataURL:url}; L._imgEl=null;
+  const im=new Image();
+  im.onload=()=>{ const all=state.layers.concat(...state.frames.map(f=>f.layers));
+    all.forEach(l=>{ if(l.img && l.img.dataURL===url) l._imgEl=im; });
+    state.thumbsDirty=true; render(); buildLayers(); };
+  im.src=url;
+  setHint("Zone effacée (transparente)");
 }
 export function applyCrop(cx,cy,cw,ch){
   cx=Math.max(0,cx|0); cy=Math.max(0,cy|0);
@@ -919,12 +989,16 @@ document.getElementById("flipV").onclick=()=>transformCanvas("flipV");
 // Modale Taille de l'image
 document.getElementById("sizeOpen").onclick=()=>document.getElementById("sizeModal").classList.add("open");
 document.getElementById("sizeClose").onclick=()=>document.getElementById("sizeModal").classList.remove("open");
-document.getElementById("sizeOk").onclick=()=>document.getElementById("sizeModal").classList.remove("open");
+document.getElementById("sizeOk").onclick=()=>{
+  if(!document.getElementById("customWH").hidden) applySizeFields();        // une taille saisie mais pas encore appliquée
+  document.getElementById("sizeModal").classList.remove("open"); };
 document.getElementById("sizeModal").addEventListener("click",e=>{ if(e.target.id==="sizeModal") e.currentTarget.classList.remove("open"); });
 export function resize(w,h){
   w=Math.max(8,Math.min(512,w|0)); h=Math.max(8,Math.min(512,h|0));
+  if(w===state.W && h===state.H) return false;
   if(state.activeShape) bakeShape();
   commitFloat(); state.sel=null;
+  snapshot("Taille de l'image");               // annulable : l'historique garde l'ancienne taille
   transformAllFrames(layers=>{
     layers.forEach(L=>{ if(!L.isGroup) bakeOffset(L); });
     layers.forEach(L=>{ if(!L.img && !L.isGroup) L.data=remapData(L.data,w,h); });
@@ -933,8 +1007,8 @@ export function resize(w,h){
   state.active=Math.min(state.active,state.layers.length-1);
   syncPresetToSize();
   invalidateCropForNewSize();
-  history.length=0; state.histPtr=-1; snapshot();
   buildLayers(); fitZoom();
+  return true;
 }
 
 // ---------- Barre de menus ----------

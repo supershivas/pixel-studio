@@ -18,6 +18,7 @@ import "./historyPanel.js";
 import "./files.js";
 import "./sheet.js";
 import "./touch.js";
+import "./controls.js";
 
 // ---------- Init ----------
 loadPrefs();

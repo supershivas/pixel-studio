@@ -1,7 +1,7 @@
 import { state, view, overlay, vctx, octx, composite, cctx, artwork, actx, checkerCv, chctx, blendOp } from "./state.js";
 import { snapshot } from "./history.js";
 import { FONTS, drawTransform } from "./drawing.js";
-import { setTool, buildLayers, refreshThumbs, measureLineW, prefs } from "./ui.js";
+import { setTool, buildLayers, refreshThumbs, measureLineW, prefs, eraseImageRect } from "./ui.js";
 import { setHint } from "./interaction.js";
 
 // ---------- Helpers ----------
@@ -178,6 +178,10 @@ export function cutSelection(){ if(state.floatSel){ state.clipboard={data:state.
   if(state.sel && !state.layers[state.active].img){ copySelection(); snapshot(); const L=state.layers[state.active]; const {x,y,w,h}=state.sel;
     for(let j=0;j<h;j++) for(let i=0;i<w;i++) setLayerAt(L,x+i,y+j,null); state.thumbsDirty=true; buildLayers(); render(); } }
 export function deleteSelection(){ if(state.floatSel){ state.floatSel=null; state.thumbsDirty=true; render(); return; }
+  if(state.sel && state.layers[state.active].img){      // calque image : les pixels sélectionnés deviennent transparents dans l'image
+    const L=state.layers[state.active];
+    if(L.locked){ setHint("Calque verrouillé — déverrouille-le dans ses options (⚙)"); return; }
+    eraseImageRect(L,state.sel); return; }
   if(state.sel && !state.layers[state.active].img){ snapshot(); const L=state.layers[state.active]; const {x,y,w,h}=state.sel;
     for(let j=0;j<h;j++) for(let i=0;i<w;i++) setLayerAt(L,x+i,y+j,null); state.thumbsDirty=true; buildLayers(); render(); } }
 export function pasteClipboard(){ if(!state.clipboard) return; commitFloat();

@@ -40,6 +40,7 @@ function sameAsLive(snap){
       || (a.blend||"normal")!==(b.blend||"normal") || (a.ox||0)!==(b.ox||0) || (a.oy||0)!==(b.oy||0)
       || !!a.locked!==!!b.locked || !!a.alphaLock!==!!b.alphaLock || !!a.isGroup!==!!b.isGroup
       || (a.groupId||null)!==(b.groupId||null) || a.expanded!==b.expanded) return false;
+    if(a.img!==b.img && (!a.img||!b.img||a.img.dataURL!==b.img.dataURL)) return false;      // image remplacée (rognage, effacement…)
     if(JSON.stringify(a.fx||null)!==JSON.stringify(b.fx||null)) return false;
     if(JSON.stringify(a.text||null)!==JSON.stringify(b.text||null)) return false;
     if(!!a.data!==!!b.data) return false;

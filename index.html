@@ -297,6 +297,7 @@
   .current .chip{width:34px;height:34px;border-radius:6px;border:1px solid var(--line);padding:0;cursor:pointer}
   .current .chip:hover{border-color:var(--ink)}
   .color-ghost{position:fixed;z-index:300;width:30px;height:30px;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);border:3px solid var(--ink);box-shadow:0 8px 20px rgba(0,0,0,.5)}
+  .view-reset{position:absolute;left:12px;bottom:46px;z-index:5}
   .recent-label{margin-top:10px}
   #recentColors{margin-top:6px}
   .chips .chip{touch-action:none}
@@ -553,6 +554,7 @@
         <button class="menu-item" id="flipV" data-close>Miroir vertical</button>
         <div class="menu-sep"></div>
         <button class="menu-item" id="sizeOpen" data-close>Taille de l'image…</button>
+        <button class="menu-item" id="viewResetMenu" data-close>Remettre la vue à l'horizontale</button>
         <div class="menu-sep"></div>
         <div class="menu-label">Zoom</div>
         <div class="menu-field">
@@ -700,6 +702,7 @@
       <canvas id="overlay"></canvas>
     </div>
     <div class="hint" id="hint">—</div>
+    <button class="mini view-reset" id="viewReset" hidden title="Remettre la vue à l'horizontale">↺ Vue à 0°</button>
   </section>
   </div>
 

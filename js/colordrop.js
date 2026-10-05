@@ -5,6 +5,7 @@ import { render } from "./helpers.js";
 import { buildLayers } from "./ui.js";
 import { setHint } from "./interaction.js";
 import { noteColorUsed } from "./palettes.js";
+import { clientToCell } from "./viewgeo.js";
 
 // ---------- ColorDrop : glisser une couleur (pastille, palette, récentes) sur le dessin pour remplir la zone ----------
 // La zone touchée est remplie comme avec le pot de peinture (tolérance et contiguïté du pot comprises).
@@ -32,7 +33,7 @@ function up(e){
   end();
   if(!was||e.type!=="pointerup") return;
   suppressClick=true; setTimeout(()=>suppressClick=false,0);
-  const r=view.getBoundingClientRect(), x=Math.floor((e.clientX-r.left)/state.zoom), y=Math.floor((e.clientY-r.top)/state.zoom);
+  const [fx,fy]=clientToCell(e.clientX,e.clientY), x=Math.floor(fx), y=Math.floor(fy);
   if(x<0||y<0||x>=state.W||y>=state.H) return;
   const L=state.layers[state.active];
   if(L.img){ setHint("Le remplissage ne s'applique pas aux calques image"); return; }

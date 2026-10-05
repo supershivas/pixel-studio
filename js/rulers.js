@@ -1,5 +1,6 @@
 import { state, stage, view } from "./state.js";
 import { render } from "./helpers.js";
+import { clientToCell } from "./viewgeo.js";
 
 // ---------- Règles et repères manuels ----------
 // Règles graduées en pixels du dessin, sur les bords de la scène. On glisse depuis la règle de
@@ -44,7 +45,9 @@ function drawRuler(cv,horizontal){
     if(!horizontal && gd.axis==="y"){ const p=origin+gd.pos*z; g.fillRect(thick-6,p-1,6,3); }
   }
 }
-export function drawRulers(){ if(!state.rulersOn) return; drawRuler(top,true); drawRuler(left,false); }
+export function drawRulers(){ if(!state.rulersOn) return;
+  if(state.viewAngle){ [top,left].forEach(cv=>sizeCanvas(cv)); return; }            // règles masquées tant que la vue est tournée
+  drawRuler(top,true); drawRuler(left,false); }
 
 function setRulers(on){
   state.rulersOn=on; tog.checked=on; wrap.classList.toggle("rulers",on); top.hidden=!on; left.hidden=!on;
@@ -58,7 +61,7 @@ stage.addEventListener("scroll",()=>{ if(state.rulersOn) drawRulers(); });
 window.addEventListener("resize",()=>{ if(state.rulersOn) requestAnimationFrame(drawRulers); });
 
 // ---------- Poser / déplacer / supprimer un repère ----------
-function cellPos(e,axis){ const vr=view.getBoundingClientRect(); return Math.round(axis==="x" ? (e.clientX-vr.left)/state.zoom : (e.clientY-vr.top)/state.zoom); }
+function cellPos(e,axis){ const [cx,cy]=clientToCell(e.clientX,e.clientY); return Math.round(axis==="x"?cx:cy); }
 function pick(e,horizontal){      // repère existant sous le pointeur, sur cette règle ?
   const vr=view.getBoundingClientRect(), z=state.zoom;
   return state.rulerGuides.find(gd=>horizontal ? gd.axis==="x" && Math.abs(vr.left+gd.pos*z-e.clientX)<=5

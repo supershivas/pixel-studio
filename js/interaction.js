@@ -4,6 +4,7 @@ import { inBounds, insideRect, render, renderSoon, clampSel, liftSelection, comm
 import { snapshot, undo, redo, abortStroke } from "./history.js";
 import { touchCount, penIsDown } from "./touch.js";
 import { noteColorUsed } from "./palettes.js";
+import { clientToCell, clientToLocal, cellToClient } from "./viewgeo.js";
 import { stampPlace, stampGhost, stampSpacing } from "./stamps.js";
 import { stampPattern, patternFill, gradientPreview, gradientApply } from "./patterns.js";
 import { brushOffsets, rectCells, ellipseCells, stamp, line, floodFill, selectSimilar, selectLasso, TRANSFORM_TOOLS, shapeToPreview, hitHandle, unrot, bakeShape, enterLayerTransform, mirrorPoints } from "./drawing.js";
@@ -23,10 +24,8 @@ export function cancelDrawing(){
   drawing=false; creating=false; state.previewCells=null; state.gradDrag=null; state.lasso=null; state.cropDrag=null; state.selDrag=null; state.txOp=null;
   render();
 }
-export function cellFromEvent(e){ const r=view.getBoundingClientRect();
-  return [Math.floor((e.clientX-r.left)/state.zoom), Math.floor((e.clientY-r.top)/state.zoom)]; }
-export function screenFromEvent(e){ const r=view.getBoundingClientRect();
-  return [e.clientX-r.left, e.clientY-r.top]; }
+export function cellFromEvent(e){ const [cx,cy]=clientToCell(e.clientX,e.clientY); return [Math.floor(cx),Math.floor(cy)]; }
+export function screenFromEvent(e){ return clientToLocal(e.clientX,e.clientY); }
 export function makeShape(x0,y0,x1,y1,square){
   let w=Math.max(1,Math.abs(x1-x0)+1), h=Math.max(1,Math.abs(y1-y0)+1);
   if(square){ const s=Math.max(w,h); w=h=s; }
@@ -45,7 +44,7 @@ export function stampPreview(px,py){
 // le trait est régulier. Au relâchement, le trait rattrape le point réel.
 let smooth=null;
 const STROKE_TOOLS=new Set(["pencil","eraser","dither"]);
-const rawCell=e=>{ const r=view.getBoundingClientRect(); return [(e.clientX-r.left)/state.zoom,(e.clientY-r.top)/state.zoom]; };
+const rawCell=e=>clientToCell(e.clientX,e.clientY);
 function strokeCell(e){
   const [rx,ry]=rawCell(e);
   if(!(state.stabilize>0) || !smooth) return [Math.floor(rx),Math.floor(ry)];
@@ -347,12 +346,11 @@ stage.addEventListener("wheel",e=>{ if(!prefs.wheelZoom && !e.ctrlKey && !e.meta
   const steps=Math.trunc(Math.abs(wheelAcc)/(Math.abs(e.deltaY)>=50?50:40));
   if(!steps) return;
   const dir=wheelAcc<0?1:-1; wheelAcc=0;
-  const rect=view.getBoundingClientRect();
-  const cx=(e.clientX-rect.left)/state.zoom, cy=(e.clientY-rect.top)/state.zoom;   // cellule sous le curseur
+  const [cx,cy]=clientToCell(e.clientX,e.clientY);   // cellule sous le curseur
   const old=state.zoom; setZoom(state.zoom+dir*Math.min(steps,3));
-  if(state.zoom!==old){ const nr=view.getBoundingClientRect();
-    stage.scrollLeft += (nr.left + cx*state.zoom) - e.clientX;
-    stage.scrollTop  += (nr.top  + cy*state.zoom) - e.clientY; }
+  if(state.zoom!==old){ const [px,py]=cellToClient(cx,cy);
+    stage.scrollLeft += px - e.clientX;
+    stage.scrollTop  += py - e.clientY; }
 },{passive:false});
 
 // ---------- Empêcher les raccourcis de recherche du navigateur ----------

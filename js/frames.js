@@ -30,7 +30,7 @@ export function initFrames(){
   buildFrames();
   // enregistré ici (plutôt qu'au chargement du module) pour éviter un accès à history.js
   // avant son initialisation, à cause du cycle d'imports frames.js ↔ ui.js ↔ history.js
-  if(!_snapshotHooked){ _snapshotHooked=true; onSnapshot(()=>{ if(state.frames && state.frames.length) buildFrames(); }); }
+  if(!_snapshotHooked){ _snapshotHooked=true; onSnapshot(()=>{ if(state.frames && state.frames.length) refreshActiveFrameThumb(); }); }
 }
 
 export function switchFrame(i){
@@ -129,6 +129,13 @@ function frameThumb(f,i){
   el.addEventListener("click",()=>{ if(!suppressClick) switchFrame(i); });
   el.addEventListener("pointerdown",e=>startFramePress(e,el,f));
   return el;
+}
+// Met à jour la seule vignette de la frame active (au lieu de recomposer toutes les frames à chaque trait)
+export function refreshActiveFrameThumb(){
+  if(!framesEl) return;
+  const els=framesEl.querySelectorAll(".frame"), el=els[state.activeFrame], cv=el&&el.querySelector("canvas.fthumb");
+  if(els.length!==state.frames.length || !cv || cv.width!==state.W || cv.height!==state.H){ buildFrames(); return; }
+  cv.getContext("2d").putImageData(compositeLayers(state.layers),0,0);
 }
 export function buildFrames(){
   if(!framesEl) return;

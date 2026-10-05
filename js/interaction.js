@@ -1,5 +1,5 @@
 import { state, view, hint, stage } from "./state.js";
-import { inBounds, insideRect, render, clampSel, liftSelection, commitFloat, copySelection, cutSelection,
+import { inBounds, insideRect, render, renderSoon, clampSel, liftSelection, commitFloat, copySelection, cutSelection,
   deleteSelection, pasteClipboard, nudgeSelection, compositeToImageData, idx, layerAt, setLayerAt } from "./helpers.js";
 import { snapshot, undo, redo, abortStroke } from "./history.js";
 import { touchCount, penIsDown } from "./touch.js";
@@ -16,6 +16,7 @@ export function setHint(t){ hint.textContent = t||"—"; }
 // doigt est abandonné, comme dans Procreate, et ses éventuelles modifications annulées.
 export function cancelDrawing(){
   if(pendingDown){ clearTimeout(pendingDown.timer); pendingDown=null; }
+  state.stroking=false; state.strokeCache=null;
   if(drawing && state.histPtr>downPtr) abortStroke();       // trait en cours : on le retire de l'historique
   drawing=false; creating=false; state.previewCells=null; state.gradDrag=null; state.lasso=null; state.cropDrag=null; state.selDrag=null; state.txOp=null;
   render();
@@ -52,6 +53,7 @@ function penStep(px,py,L){
 }
 
 function onViewDown(e){
+  state.stroking = state.tool==="pencil"||state.tool==="eraser"||state.tool==="dither"||state.tool==="stamp";   // active le cache de rendu des calques sous l'actif
   if(spaceHeld || e.button===1) return;   // laisser le pan (géré par la scène)
   if(e.pointerType==="touch" && (touchCount()>1 || penIsDown())) return;   // geste à plusieurs doigts, ou paume pendant que le stylet dessine
   downPtr=state.histPtr;
@@ -138,7 +140,7 @@ view.addEventListener("pointermove",e=>{
       if(e.altKey){ if(horiz){ s.skewY=ey/((state.txOp.edge==="r"?0.5:-0.5)*s.w||1); } else { s.skewX=ex/((state.txOp.edge==="b"?0.5:-0.5)*s.h||1); } setHint("cisaillement"); }
       else if(e.shiftKey){ const v=Math.max(1, horiz?2*Math.abs(ex):2*Math.abs(ey)); s.w=s.h=v; setHint("échelle "+Math.round(v)); }
       else { if(horiz){ s.w=Math.max(1,2*Math.abs(ex)); } else { s.h=Math.max(1,2*Math.abs(ey)); } setHint("déformer"); } }
-    shapeToPreview(); render(); return;
+    shapeToPreview(); renderSoon(); return;
   }
   if(state.tool==="stamp" && !drawing){ if(inBounds(x,y)) stampGhost(x,y); setHint(inBounds(x,y)?(x+" , "+y+"   ·   tampon"):""); return; }
   if(!drawing){ setHint(inBounds(x,y)?(x+" , "+y+"   ·   "+state.tool):""); return; }
@@ -147,7 +149,7 @@ view.addEventListener("pointermove",e=>{
   if(state.tool==="lasso" && drawing && state.lasso){
     const cx=Math.max(0,Math.min(state.W-1,x)), cy=Math.max(0,Math.min(state.H-1,y));
     const last=state.lasso[state.lasso.length-1];
-    if(cx!==last[0]||cy!==last[1]){ line(last[0],last[1],cx,cy,(px,py)=>state.lasso.push([px,py])); render(); }
+    if(cx!==last[0]||cy!==last[1]){ line(last[0],last[1],cx,cy,(px,py)=>state.lasso.push([px,py])); renderSoon(); }
     return;
   }
 
@@ -158,39 +160,42 @@ view.addEventListener("pointermove",e=>{
     const rw=Math.min(Math.abs(x-x0)+1, state.W-rx), rh=Math.min(Math.abs(y-y0)+1, state.H-ry);
     state.cropRect={x:rx,y:ry,w:rw,h:rh};
     updateCropFields();
-    setHint("recadrer "+rw+"×"+rh); render(); return;
+    setHint("recadrer "+rw+"×"+rh); renderSoon(); return;
   }
 
   // sélection rectangulaire
   if(state.tool==="select" && drawing && state.selDrag){
     if(state.selDrag.mode==="new"){ const x0=state.selDrag.x0,y0=state.selDrag.y0;
       state.sel={x:Math.min(x0,x),y:Math.min(y0,y),w:Math.abs(x-x0)+1,h:Math.abs(y-y0)+1}; clampSel();
-      setHint("sélection "+state.sel.w+"×"+state.sel.h); render(); return; }
+      setHint("sélection "+state.sel.w+"×"+state.sel.h); renderSoon(); return; }
     if(state.selDrag.mode==="floatmove"){ state.floatSel.x=x-state.selDrag.ox; state.floatSel.y=y-state.selDrag.oy;
-      state.sel={x:state.floatSel.x,y:state.floatSel.y,w:state.floatSel.w,h:state.floatSel.h}; render(); return; }
+      state.sel={x:state.floatSel.x,y:state.floatSel.y,w:state.floatSel.w,h:state.floatSel.h}; renderSoon(); return; }
   }
 
   // déplacement du contenu du calque actif
   if(state.tool==="move"){ const L=state.layers[state.active]; const dx=x-moveStart.x, dy=y-moveStart.y;
     L.ox=moveOrig.ox+dx; L.oy=moveOrig.oy+dy;
-    setHint("déplacer "+(dx>=0?"+":"")+dx+", "+(dy>=0?"+":"")+dy); render(); return; }
+    setHint("déplacer "+(dx>=0?"+":"")+dx+", "+(dy>=0?"+":"")+dy); renderSoon(); return; }
 
   // création d'une forme (glisser pour définir la boîte)
-  if(creating){ state.activeShape=makeShape(startX,startY,x,y,e.shiftKey); shapeToPreview(); render(); setHint(e.shiftKey?"régulier (Maj)":"relâche pour éditer"); return; }
+  if(creating){ state.activeShape=makeShape(startX,startY,x,y,e.shiftKey); shapeToPreview(); renderSoon(); setHint(e.shiftKey?"régulier (Maj)":"relâche pour éditer"); return; }
 
   if(state.tool==="stamp"){
-    if(Math.hypot(x-lastX,y-lastY)>=stampSpacing()){ stampPlace(x,y); lastX=x; lastY=y; render(); }
+    if(Math.hypot(x-lastX,y-lastY)>=stampSpacing()){ stampPlace(x,y); lastX=x; lastY=y; renderSoon(); }
     return; }
   if(state.tool==="gradient" && state.gradDrag){ state.gradDrag.x1=x; state.gradDrag.y1=y; gradientPreview(); setHint("dégradé "+state.gradDrag.x0+","+state.gradDrag.y0+" → "+x+","+y); return; }
-  if(state.tool==="dither"){ line(lastX,lastY,x,y,(px,py)=>stampPattern(px,py,state.layers[state.active])); lastX=x;lastY=y; render(); }
-  else if(state.tool==="pencil"){ const L=state.layers[state.active]; line(lastX,lastY,x,y,(px,py)=>penStep(px,py,L)); lastX=x;lastY=y; render(); }
-  else if(state.tool==="eraser"){ line(lastX,lastY,x,y,(px,py)=>stamp(px,py,null,state.layers[state.active])); lastX=x;lastY=y; render(); }
-  else if(state.tool==="shape" && state.shapeKind==="line"){ state.previewCells=new Map(); line(startX,startY,x,y,stampPreview); render(); }
+  if(state.tool==="dither"){ line(lastX,lastY,x,y,(px,py)=>stampPattern(px,py,state.layers[state.active])); lastX=x;lastY=y; renderSoon(); }
+  else if(state.tool==="pencil"){ const L=state.layers[state.active]; line(lastX,lastY,x,y,(px,py)=>penStep(px,py,L)); lastX=x;lastY=y; renderSoon(); }
+  else if(state.tool==="eraser"){ line(lastX,lastY,x,y,(px,py)=>stamp(px,py,null,state.layers[state.active])); lastX=x;lastY=y; renderSoon(); }
+  else if(state.tool==="shape" && state.shapeKind==="line"){ state.previewCells=new Map(); line(startX,startY,x,y,stampPreview); renderSoon(); }
   setHint(inBounds(x,y)?(x+" , "+y):"");
 });
 
+// filet de sécurité : quoi qu'il arrive au pointeur, le cache de rendu du trait ne survit pas au geste
+["pointerup","pointercancel"].forEach(n=>window.addEventListener(n,()=>{ state.stroking=false; state.strokeCache=null; },true));
 view.addEventListener("pointerup",e=>{
   flushDown();
+  state.stroking=false; state.strokeCache=null;
   if(!drawing) return;
   const [x,y]=cellFromEvent(e);
   if(state.tool==="gradient"){ drawing=false; gradientApply(); return; }

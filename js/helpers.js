@@ -78,25 +78,40 @@ export function effVisible(L){
   return true; }
 
 // ---------- Compositing ----------
-// pixels effectifs d'un calque en coordonnées canevas (décalage + effets couleur/contour/ombre)
-export function layerPixels(L){
-  const ox=L.ox||0, oy=L.oy||0, fx=L.fx;
-  const base=new Map();
-  for(let dy=0;dy<state.H;dy++) for(let dx=0;dx<state.W;dx++){ const c=L.data[dy*state.W+dx]; if(c===null) continue;
-    const gx=dx+ox, gy=dy+oy; if(gx<0||gy<0||gx>=state.W||gy>=state.H) continue;
-    base.set(gx+","+gy, (fx&&fx.color)?fx.color:c); }
-  if(!fx || (!(fx.stroke&&fx.stroke.on) && !(fx.shadow&&fx.shadow.on))) return base;
-  const out=new Map();
-  if(fx.shadow&&fx.shadow.on){ const sdx=fx.shadow.dx|0, sdy=fx.shadow.dy|0, sc=fx.shadow.color;
-    for(const k of base.keys()){ const [x,y]=k.split(",").map(Number); const nx=x+sdx, ny=y+sdy;
-      if(nx>=0&&ny>=0&&nx<state.W&&ny<state.H) out.set(nx+","+ny, sc); } }
-  if(fx.stroke&&fx.stroke.on){ const w=Math.max(1,fx.stroke.width|0), sc=fx.stroke.color;
-    for(const k of base.keys()){ const [x,y]=k.split(",").map(Number);
-      for(let ry=-w;ry<=w;ry++) for(let rx=-w;rx<=w;rx++){ if(rx===0&&ry===0) continue;
-        if(Math.max(Math.abs(rx),Math.abs(ry))>w) continue; const nx=x+rx,ny=y+ry;
-        if(nx<0||ny<0||nx>=state.W||ny>=state.H) continue; const kk=nx+","+ny; if(!base.has(kk)) out.set(kk,sc); } } }
-  for(const [k,v] of base) out.set(k,v);
+// Couleurs hexa -> entier RGBA empaqueté (0xAABBGGRR en mémoire little-endian : octets r,g,b,a), mis en cache.
+const packCache=new Map();
+export function packHex(hex){
+  let v=packCache.get(hex);
+  if(v===undefined){ const [r,g,b]=hexToRgb(hex); v=((255<<24)|(b<<16)|(g<<8)|r)>>>0; packCache.set(hex,v); }
+  return v;
+}
+// Pixels effectifs d'un calque, en coordonnées canevas, sous forme de tableau typé W×H (0 = vide) :
+// décalage + effets couleur / ombre / contour. Remplace l'ancienne Map "x,y" → hex, bien trop lente
+// (des milliers de chaînes allouées à chaque rendu) pour dessiner au stylet.
+export function rasterizeLayer(L){
+  const W=state.W, H=state.H, N=W*H, base=new Uint32Array(N), d=L.data;
+  if(!d) return base;
+  const ox=L.ox||0, oy=L.oy||0, fx=L.fx, tint=fx&&fx.color?packHex(fx.color):0;
+  if(!ox&&!oy){ for(let i=0;i<N;i++){ const c=d[i]; if(c!==null) base[i]=tint||packHex(c); } }
+  else for(let y=0;y<H;y++){ const gy=y+oy; if(gy<0||gy>=H) continue;
+    for(let x=0;x<W;x++){ const c=d[y*W+x]; if(c===null) continue; const gx=x+ox; if(gx<0||gx>=W) continue; base[gy*W+gx]=tint||packHex(c); } }
+  const shadow=fx&&fx.shadow&&fx.shadow.on, stroke=fx&&fx.stroke&&fx.stroke.on;
+  if(!shadow && !stroke) return base;
+  const out=new Uint32Array(N);
+  if(shadow){ const sdx=fx.shadow.dx|0, sdy=fx.shadow.dy|0, sc=packHex(fx.shadow.color);
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++) if(base[y*W+x]){ const nx=x+sdx, ny=y+sdy; if(nx>=0&&ny>=0&&nx<W&&ny<H) out[ny*W+nx]=sc; } }
+  if(stroke){ const w=Math.max(1,fx.stroke.width|0), sc=packHex(fx.stroke.color);
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++) if(base[y*W+x]){
+      for(let ry=-w;ry<=w;ry++) for(let rx=-w;rx<=w;rx++){ if(!rx&&!ry) continue; const nx=x+rx, ny=y+ry;
+        if(nx<0||ny<0||nx>=W||ny>=H) continue; const k=ny*W+nx; if(!base[k]) out[k]=sc; } } }
+  for(let i=0;i<N;i++) if(base[i]) out[i]=base[i];
   return out;
+}
+// ancienne interface (Map "x,y" → hex), conservée pour d'éventuels appels externes
+export function layerPixels(L){
+  const px=rasterizeLayer(L), m=new Map(), W=state.W;
+  for(let i=0;i<px.length;i++){ const c=px[i]; if(c) m.set((i%W)+","+((i/W)|0),"#"+[c&255,(c>>8)&255,(c>>16)&255].map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase()); }
+  return m;
 }
 export function blendCh(mode,cb,cs){ switch(mode){
   case "multiply": return cb*cs;
@@ -106,17 +121,22 @@ export function blendCh(mode,cb,cs){ switch(mode){
   case "lighten": return Math.max(cb,cs);
   default: return cs; } }
 export function compositeLayers(ls){
-  const data = new Uint8ClampedArray(state.W*state.H*4);
+  const N=state.W*state.H, data=new Uint8ClampedArray(N*4);
   for(const L of ls){
     if(L.isGroup || !effVisible(L) || L.opacity<=0 || L.img) continue;
-    const as=L.opacity, mode=L.blend||"normal", px=layerPixels(L);
-    for(const [k,hex] of px){ const [gx,gy]=k.split(",").map(Number);
-      const [r,g,b]=hexToRgb(hex); const j=(gy*state.W+gx)*4;
-      const ab=data[j+3]/255, ao=as+ab*(1-as); if(ao<=0) continue;
+    const as=L.opacity, mode=L.blend||"normal", px=rasterizeLayer(L);
+    for(let i=0;i<N;i++){ const c=px[i]; if(!c) continue;
+      const j=i*4, r=c&255, g=(c>>8)&255, b=(c>>16)&255, ab=data[j+3]/255;
+      if(mode==="normal"){
+        if(as>=1||ab===0){ data[j]=r; data[j+1]=g; data[j+2]=b; data[j+3]=as*255; continue; }
+        const ao=as+ab*(1-as);
+        data[j]=(as*r+(1-as)*ab*data[j])/ao; data[j+1]=(as*g+(1-as)*ab*data[j+1])/ao; data[j+2]=(as*b+(1-as)*ab*data[j+2])/ao;
+        data[j+3]=ao*255; continue;
+      }
+      const ao=as+ab*(1-as); if(ao<=0) continue;
       const cs=[r/255,g/255,b/255], cb=[data[j]/255,data[j+1]/255,data[j+2]/255];
-      for(let c=0;c<3;c++){ const B=blendCh(mode,cb[c],cs[c]);
-        const co=as*(1-ab)*cs[c] + as*ab*B + (1-as)*ab*cb[c];
-        data[j+c]=(co/ao)*255; }
+      for(let k=0;k<3;k++){ const B=blendCh(mode,cb[k],cs[k]);
+        data[j+k]=((as*(1-ab)*cs[k] + as*ab*B + (1-as)*ab*cb[k])/ao)*255; }
       data[j+3]=ao*255;
     }
   }
@@ -227,17 +247,38 @@ function drawOnionSkin(){
   if(prev) drawOnionFrame(prev.layers,[255,90,90]);
   if(next) drawOnionFrame(next.layers,[90,160,255]);
 }
+// Rendu regroupé : au plus un par image affichée (stylet à 240 Hz → on ne redessine pas à chaque événement)
+let renderRaf=0;
+export function renderSoon(){ if(renderRaf) return; renderRaf=requestAnimationFrame(()=>{ renderRaf=0; render(); }); }
 export function render(){
+  if(renderRaf){ cancelAnimationFrame(renderRaf); renderRaf=0; }
   clearStaleSolo();
-  view.width = state.W*state.zoom; view.height = state.H*state.zoom;
+  // (réassigner width/height réalloue et efface le canevas : on ne le fait que si la taille change)
+  const VW=state.W*state.zoom, VH=state.H*state.zoom;
+  if(view.width!==VW||view.height!==VH){ view.width=VW; view.height=VH; }
   vctx.imageSmoothingEnabled=false;
   ensureChecker(); vctx.drawImage(checkerCv,0,0);
 
   // composition des calques sur un canevas transparent (modes de fusion vs calques inférieurs)
-  artwork.width=state.W*state.zoom; artwork.height=state.H*state.zoom; actx.imageSmoothingEnabled=false;
-  const tmp=composite; tmp.width=state.W; tmp.height=state.H; const tctx=cctx;
-  if(state.onionSkin && state.frames && state.frames.length>1 && !state.playing) drawOnionSkin();
-  for(const L of state.layers){
+  if(artwork.width!==VW||artwork.height!==VH){ artwork.width=VW; artwork.height=VH; } else actx.clearRect(0,0,VW,VH);
+  actx.imageSmoothingEnabled=false;
+  const tmp=composite; if(tmp.width!==state.W||tmp.height!==state.H){ tmp.width=state.W; tmp.height=state.H; } const tctx=cctx;
+  // Pendant un trait, seul le calque actif change : les calques situés SOUS lui sont composés une fois
+  // (cache de trait, jeté au relâchement) et simplement recopiés à chaque image.
+  const sig=VW+"x"+VH+"|"+state.active+"|"+state.layers.length+"|"+state.activeFrame;
+  let from=0, sc=state.strokeCache;
+  if(!state.stroking){ state.strokeCache=null; sc=null; }
+  if(sc && sc.sig===sig){ actx.drawImage(sc.cv,0,0); from=sc.upto; }
+  else {
+    sc=null; state.strokeCache=null;
+    if(state.onionSkin && state.frames && state.frames.length>1 && !state.playing) drawOnionSkin();
+  }
+  for(let li=from; li<state.layers.length; li++){
+    if(state.stroking && !sc && li===state.active){        // les calques sous l'actif sont prêts : on les met en cache
+      const cv=document.createElement("canvas"); cv.width=VW; cv.height=VH; cv.getContext("2d").drawImage(artwork,0,0);
+      sc=state.strokeCache={ cv, sig, upto:li };
+    }
+    const L=state.layers[li];
     if(L.isGroup || !effVisible(L) || L.opacity<=0) continue;
     actx.save(); actx.globalAlpha=L.opacity; actx.globalCompositeOperation=blendOp(L.blend);
     if(L.img){
@@ -247,10 +288,8 @@ export function render(){
         actx.drawImage(L._imgEl,(state.W*state.zoom-w)/2+(L.ox||0)*state.zoom,(state.H*state.zoom-h)/2+(L.oy||0)*state.zoom,w,h);
         actx.imageSmoothingEnabled=false; }
     } else {
-      const im=tctx.createImageData(state.W,state.H);
-      for(const [k,hex] of layerPixels(L)){ const [gx,gy]=k.split(",").map(Number);
-        const j=(gy*state.W+gx)*4; const [r,g,b]=hexToRgb(hex); im.data[j]=r;im.data[j+1]=g;im.data[j+2]=b;im.data[j+3]=255; }
-      tctx.putImageData(im,0,0);
+      const px=rasterizeLayer(L);
+      tctx.putImageData(new ImageData(new Uint8ClampedArray(px.buffer),state.W,state.H),0,0);
       actx.drawImage(tmp,0,0,state.W*state.zoom,state.H*state.zoom);
     }
     actx.restore();
@@ -282,16 +321,21 @@ export function render(){
   if(state.thumbsDirty){ refreshThumbs(); state.thumbsDirty=false; }
 }
 
+// la grille est dessinée une fois (par taille / zoom / opacité) puis simplement recopiée à chaque rendu
+const gridCv=document.createElement("canvas"); let gridKey="";
+function gridCanvas(){
+  const alpha=prefs.gridAlpha||0.08, key=state.W+"x"+state.H+"@"+state.zoom+"/"+alpha;
+  if(key!==gridKey){ gridKey=key; gridCv.width=state.W*state.zoom; gridCv.height=state.H*state.zoom;
+    const g=gridCv.getContext("2d"); g.strokeStyle="rgba(255,255,255,"+alpha+")"; g.lineWidth=1; g.beginPath();
+    for(let x=0;x<=state.W;x++){ g.moveTo(x*state.zoom+.5,0); g.lineTo(x*state.zoom+.5,state.H*state.zoom); }
+    for(let y=0;y<=state.H;y++){ g.moveTo(0,y*state.zoom+.5); g.lineTo(state.W*state.zoom,y*state.zoom+.5); }
+    g.stroke(); }
+  return gridCv;
+}
 export function drawGrid(){
-  overlay.width=state.W*state.zoom; overlay.height=state.H*state.zoom;
-  octx.clearRect(0,0,overlay.width,overlay.height);
-  if(document.getElementById("gridToggle").checked && state.zoom>=5){
-    octx.strokeStyle="rgba(255,255,255,"+(prefs.gridAlpha||0.08)+")"; octx.lineWidth=1;
-    octx.beginPath();
-    for(let x=0;x<=state.W;x++){ octx.moveTo(x*state.zoom+.5,0); octx.lineTo(x*state.zoom+.5,state.H*state.zoom); }
-    for(let y=0;y<=state.H;y++){ octx.moveTo(0,y*state.zoom+.5); octx.lineTo(state.W*state.zoom,y*state.zoom+.5); }
-    octx.stroke();
-  }
+  const OW=state.W*state.zoom, OH=state.H*state.zoom;
+  if(overlay.width!==OW||overlay.height!==OH){ overlay.width=OW; overlay.height=OH; } else octx.clearRect(0,0,OW,OH);
+  if(document.getElementById("gridToggle").checked && state.zoom>=5) octx.drawImage(gridCanvas(),0,0);
   drawGuides();
   // contour de sélection
   const sr = state.floatSel || (state.tool==="select" ? state.sel : null);

@@ -1,11 +1,11 @@
 import { state, PALETTE, stage, APP_VERSION } from "./state.js";
-import { render, commitFloat, bakeOffset, idx, inBounds, layerPixels, hexToRgb, compositeLayers, newLayer, newImageLayer, newGroup, groupOf, effVisible, isSolo, setSolo, checkerColors } from "./helpers.js";
+import { render, commitFloat, bakeOffset, idx, inBounds, rasterizeLayer, hexToRgb, compositeLayers, newLayer, newImageLayer, newGroup, groupOf, effVisible, isSolo, setSolo, checkerColors } from "./helpers.js";
 import { snapshot, history } from "./history.js";
 import { bakeShape, cancelShape, shapeToPreview, updateTextGlyph, textPreview, commitText, rasterizeMicro, rasterizeTTF, textLabel } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
 import { syncPresetToSize } from "./io.js";
 import { showToast } from "./toast.js";
-import { initFrames, transformAllFrames } from "./frames.js";
+import { initFrames, transformAllFrames, refreshActiveFrameThumb } from "./frames.js";
 import { lockColor } from "./palettes.js";
 
 // ---------- Tools UI ----------
@@ -599,6 +599,7 @@ export function buildLayers(){
   refreshThumbs();
 }
 export function refreshThumbs(){
+  refreshActiveFrameThumb();
   [...layersEl.querySelectorAll(".thumb")].forEach(t=>{
     const L=t._layer; const ctx=t.getContext("2d");
     ctx.clearRect(0,0,state.W,state.H);
@@ -610,10 +611,8 @@ export function refreshThumbs(){
     if(L.img){ if(L._imgEl&&L._imgEl.complete&&L._imgEl.naturalWidth){ ctx.imageSmoothingEnabled=true;
         const s=Math.min(state.W/L._imgEl.naturalWidth,state.H/L._imgEl.naturalHeight); const w=L._imgEl.naturalWidth*s,h=L._imgEl.naturalHeight*s;
         ctx.drawImage(L._imgEl,(state.W-w)/2,(state.H-h)/2,w,h); } return; }
-    const im=ctx.createImageData(state.W,state.H);
-    for(const [k,hex] of layerPixels(L)){ const [gx,gy]=k.split(",").map(Number);
-      const j=(gy*state.W+gx)*4; const [r,g,b]=hexToRgb(hex); im.data[j]=r;im.data[j+1]=g;im.data[j+2]=b;im.data[j+3]=255; }
-    ctx.putImageData(im,0,0);
+    const px=rasterizeLayer(L);
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(px.buffer),state.W,state.H),0,0);
   });
 }
 function addLayerAction(){ snapshot(); const L=newLayer("Calque "+state.layerSeq); L.groupId=state.layers[state.active].groupId||null;

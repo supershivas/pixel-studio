@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.20.0";
+export const APP_VERSION = "1.20.1";
 
 // ---------- Palette de base ----------
 // Ordre d'affichage (grille de 6 colonnes) : neutres (blanc, noir, [transparent ajouté par l'UI],
@@ -53,6 +53,7 @@ export const state = {
 
   previewCells: null, // Map "x,y"->color for in-progress shape
   sel: null, floatSel: null, clipboard: null, selDrag: null,   // sélection rectangulaire / presse-papiers
+  stroking: false, strokeCache: null,   // cache de rendu pendant un trait (voir render dans helpers.js)
   renderHooks: new Set(),   // fonctions appelées après chaque rendu (aperçu mosaïque, règles…)
   rulersOn: false, rulerGuides: [],   // règles et repères manuels {axis:"x"|"y", pos}
   lasso: null,         // points [x,y] du tracé en cours de l'outil Lasso

@@ -3,7 +3,7 @@ import { compositeLayers, newLayer, newImageLayer, render, encodeLayers, decodeL
 import { snapshot, history, onSnapshot } from "./history.js";
 import { bakeShape } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
-import { buildLayers, buildSwatches, presetSel, PRESETS, setProjectName, openColorPicker, commitCanvasText } from "./ui.js";
+import { buildLayers, buildSwatches, PRESETS, setProjectName, openColorPicker, commitCanvasText } from "./ui.js";
 import { showToast } from "./toast.js";
 import { framesSnapshotForSave, loadFramesFromSave } from "./frames.js";
 import { crc32, encodeGIF, encodeAPNG } from "./anim.js";
@@ -442,11 +442,10 @@ document.getElementById("impPaletteFile").onchange=e=>{
   rd.readAsText(f); e.target.value="";
 };
 
+// échelle d'export conseillée du format courant (le format et les dimensions sont choisis dans les modales)
 export function syncPresetToSize(){
   const key=Object.keys(PRESETS).find(k=>PRESETS[k].w===state.W && PRESETS[k].h===state.H && (!!PRESETS[k].g)===(!!state.guides));
-  if(key){ presetSel.value=key; document.getElementById("customWH").hidden=true; document.getElementById("expScale").value=PRESETS[key].scale; }
-  else { presetSel.value="custom"; document.getElementById("customWH").hidden=false;
-    document.getElementById("cw").value=state.W; document.getElementById("ch").value=state.H; }
+  if(key) document.getElementById("expScale").value=PRESETS[key].scale;
 }
 export function loadProject(p){
   if(!p || (p.format!=="pixel" && p.format!=="eu-pix")) throw new Error("format inattendu");

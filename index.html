@@ -95,11 +95,11 @@
 
   .modal-backdrop{position:fixed;inset:0;background:rgba(6,10,20,.6);backdrop-filter:blur(2px);z-index:100;display:none;place-items:center}
   /* pas d'assombrissement pour les modales à aperçu : on doit voir le rendu live derrière */
-  #fxModal.modal-backdrop,#pixelizeModal.modal-backdrop{background:transparent;backdrop-filter:none}
-  #fxModal .modal,#pixelizeModal .modal{box-shadow:0 24px 60px rgba(0,0,0,.75),0 0 0 1px var(--line)}
+  #fxModal.modal-backdrop,#pixelizeModal.modal-backdrop,#sizeModal.modal-backdrop,#newModal.modal-backdrop{background:transparent;backdrop-filter:none}
+  #fxModal .modal,#pixelizeModal .modal,#sizeModal .modal,#newModal .modal{box-shadow:0 24px 60px rgba(0,0,0,.75),0 0 0 1px var(--line)}
   /* modale étroite : rangée sur le bord droit pour libérer la vue sur l'aperçu (déplaçable) */
-  #pixelizeModal.modal-backdrop.open{place-items:center end;padding-right:18px}
-  @media (max-width:900px){ #pixelizeModal.modal-backdrop.open{place-items:center;padding-right:0} }
+  #pixelizeModal.modal-backdrop.open,#sizeModal.modal-backdrop.open,#newModal.modal-backdrop.open{place-items:center end;padding-right:18px}
+  @media (max-width:900px){ #pixelizeModal.modal-backdrop.open,#sizeModal.modal-backdrop.open,#newModal.modal-backdrop.open{place-items:center;padding-right:0} }
   .modal-backdrop.open{display:grid}
   .modal{width:min(460px,92vw);max-height:86vh;overflow-y:auto;background:var(--panel);
     border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
@@ -752,10 +752,10 @@
 
 <div class="modal-backdrop" id="sizeModal">
   <div class="modal w420" role="dialog" aria-label="Taille de l'image">
-    <header><h2>Taille de l'image</h2><button class="modal-x" id="sizeClose" title="Fermer" aria-label="Fermer">×</button></header>
+    <header><h2>Taille de l'image</h2><button class="modal-x" id="sizeClose" title="Annuler" aria-label="Annuler">×</button></header>
     <div class="body">
-      <div class="pref" style="display:block;border-bottom:none">
-        <div class="lbl stack-lbl">Format de carte</div>
+      <div class="pref stack">
+        <div class="lbl stack-lbl">Format</div>
         <select class="fill" id="preset">
           <optgroup label="Illustration (carré)">
             <option value="96x96">96×96 · fin</option>
@@ -774,15 +774,14 @@
           </optgroup>
           <option value="custom">Personnalisé…</option>
         </select>
-        <div id="customWH" hidden style="margin-top:10px;display:flex;align-items:center;gap:6px">
-          <input type="number" id="cw" min="8" max="512" value="96"> ×
-          <input type="number" id="ch" min="8" max="512" value="96">
-          <button class="mini" id="applyWH">Appliquer</button>
-        </div>
-        <p class="note" style="margin-top:10px">Changer la taille recadre le contenu au coin supérieur gauche. Pour pivoter le canevas (paysage), utilise Image › Rotation.</p>
       </div>
+      <div class="pref"><div class="lbl">Largeur × hauteur<small>en pixels</small></div>
+        <div class="inline sm"><input type="number" id="sizeW" min="8" max="512" value="50" data-digits="5"> × <input type="number" id="sizeH" min="8" max="512" value="70" data-digits="5"></div></div>
     </div>
-    <div class="foot"><button class="primary" id="sizeOk">Terminé</button></div>
+    <div class="foot">
+      <button id="sizeCancel">Annuler</button>
+      <button class="primary" id="sizeOk">OK</button>
+    </div>
   </div>
 </div>
 
@@ -1102,30 +1101,25 @@
     <div class="body">
       <div class="pref stack">
         <div class="lbl stack-lbl">Nom du projet</div>
-        <input class="txt fill" type="text" id="newName" maxlength="60" spellcheck="false" autocomplete="off" placeholder="Sans titre"
-         >
+        <input class="txt fill" type="text" id="newName" maxlength="60" spellcheck="false" autocomplete="off" placeholder="Sans titre">
       </div>
       <div class="pref stack">
         <div class="lbl stack-lbl">Format</div>
         <select class="fill" id="newPreset"></select>
-        <div id="newCustomWH" hidden style="margin-top:10px;display:flex;align-items:center;gap:6px">
-          <input type="number" id="newW" min="8" max="512" value="96"> ×
-          <input type="number" id="newH" min="8" max="512" value="96">
-          <span style="font-size:12px;color:var(--ink-dim)">pixels</span>
-        </div>
       </div>
+      <div class="pref"><div class="lbl">Largeur × hauteur<small>en pixels</small></div>
+        <div class="inline sm"><input type="number" id="newW" min="8" max="512" value="96" data-digits="5"> × <input type="number" id="newH" min="8" max="512" value="96" data-digits="5"></div></div>
       <div class="pref">
         <div class="lbl">Couleur de fond<small>Sinon le calque « Fond » reste transparent</small></div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div class="inline">
           <label class="switch"><input type="checkbox" id="newBgOn"><span class="sl"></span></label>
           <button class="fxsw" id="newBgColor" title="Choisir la couleur de fond" disabled></button>
         </div>
       </div>
-      <p class="note" id="newNote"></p>
     </div>
     <div class="foot">
-      <button class="mini" id="newCancel">Annuler</button>
-      <button class="primary" id="newOk">Créer</button>
+      <button id="newCancel">Annuler</button>
+      <button class="primary" id="newOk">OK</button>
     </div>
   </div>
 </div>

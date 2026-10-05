@@ -66,13 +66,17 @@ export function abortStroke(){
   if(state.histPtr<1 || history.length-1!==state.histPtr) return false;
   const snap=history.pop(); state.histPtr=history.length-1; restore(snap); return true;
 }
-export function restore(snap){
+// capture et restauration silencieuse de l'état complet (calques, frames, taille, repères) : aperçu en direct
+// des modales « Taille de l'image » / « Nouvelle image » (restaurer l'original = annuler l'aperçu)
+export const captureState=()=>liveSnap();
+export function restoreSilent(snap){ restore(snap,{silent:true,full:true}); }
+export function restore(snap,opts){
   const resized = snap.W!==state.W || snap.H!==state.H;
   if(snap.W){ state.W=snap.W; state.H=snap.H; }
   if(snap.guides!==undefined) state.guides=snap.guides;
   state.active = Math.min(snap.active, snap.layers.length-1);
   state.layers = snap.layers.map(cloneLayer);
-  if(resized && snap.frames){      // changement de taille : toutes les frames reprennent leur ancienne taille
+  if((resized || (opts&&opts.full)) && snap.frames){      // changement de taille : toutes les frames reprennent leur ancienne taille
     state.frames = snap.frames.map((f,i)=>({ id:f.id, name:f.name, active:f.active, delay:f.delay||null,
       layers:i===snap.activeFrame ? state.layers.map(cloneLayer) : f.layers.map(cloneLayer) }));
     state.activeFrame = snap.activeFrame;
@@ -80,7 +84,7 @@ export function restore(snap){
   state.cropRect=null; state.activeShape=null; state.previewCells=null;
   if(resized) for(const fn of sizeListeners) fn();
   buildLayers(); render();
-  for(const fn of snapshotListeners) fn();       // autosave, vignettes de frames, panneau d'historique
+  if(!(opts&&opts.silent)) for(const fn of snapshotListeners) fn();       // autosave, vignettes de frames, panneau d'historique
 }
 export function undo(){
   if(state.histPtr<0) return;

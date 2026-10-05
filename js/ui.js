@@ -1,11 +1,11 @@
 import { state, PALETTE, stage, APP_VERSION } from "./state.js";
-import { render, commitFloat, bakeOffset, idx, inBounds, rasterizeLayer, hexToRgb, compositeLayers, newLayer, newImageLayer, newGroup, groupOf, effVisible, isSolo, setSolo, checkerColors } from "./helpers.js";
-import { snapshot, history } from "./history.js";
+import { render, cloneLayers, commitFloat, bakeOffset, idx, inBounds, rasterizeLayer, hexToRgb, compositeLayers, newLayer, newImageLayer, newGroup, groupOf, effVisible, isSolo, setSolo, checkerColors } from "./helpers.js";
+import { snapshot, history, captureState, restoreSilent } from "./history.js";
 import { bakeShape, cancelShape, shapeToPreview, updateTextGlyph, textPreview, commitText, rasterizeMicro, rasterizeTTF, textLabel } from "./drawing.js";
 import { setHint, fitZoom } from "./interaction.js";
 import { syncPresetToSize } from "./io.js";
 import { showToast } from "./toast.js";
-import { initFrames, transformAllFrames, refreshActiveFrameThumb } from "./frames.js";
+import { initFrames, transformAllFrames, refreshActiveFrameThumb, buildFrames } from "./frames.js";
 import { lockColor } from "./palettes.js";
 
 // ---------- Tools UI ----------
@@ -819,26 +819,17 @@ export const PRESETS={
   "137x187b":{w:137,h:187,g:{bleed:6,safety:6}, scale:6},
   "54x74b": {w:54, h:74,  g:{bleed:2,safety:2}, scale:15},
 };
-presetSel.onchange=()=>{
-  const v=presetSel.value;
-  document.getElementById("customWH").hidden = v!=="custom";
-  if(v==="custom"){ state.guides=null; render(); return; }
-  const p=PRESETS[v]; if(!p) return;
-  state.guides=p.g;
-  document.getElementById("expScale").value=p.scale;
-  resize(p.w,p.h);
-};
 document.getElementById("guideToggle").onchange=render;
-// Appliquer, Entrée dans un champ, ou Terminé : la taille saisie s'applique (avant, il fallait cliquer précisément sur « Appliquer »)
-function applySizeFields(){
-  const w=Math.round(+document.getElementById("cw").value), h=Math.round(+document.getElementById("ch").value);
-  if(!(w>0&&h>0)) return false;
-  const changed=resize(w,h);
-  document.getElementById("cw").value=state.W; document.getElementById("ch").value=state.H;
-  return changed;
+// Sélecteur de format commun à « Taille de l'image » et « Nouvelle image » : choisir un format remplit les champs
+// largeur × hauteur (toujours visibles, toujours modifiables) ; saisir des dimensions qui correspondent à un format le sélectionne.
+const clampDim=v=>Math.max(8,Math.min(512,Math.round(+v)||8));
+function presetKeyFor(w,h){ return Object.keys(PRESETS).find(k=>PRESETS[k].w===w && PRESETS[k].h===h); }
+function wireSizePicker(sel,wEl,hEl,onChange){
+  sel.addEventListener("change",()=>{ const p=PRESETS[sel.value]; if(p){ wEl.value=p.w; hEl.value=p.h; } onChange(); });
+  const typed=()=>{ sel.value=presetKeyFor(Math.round(+wEl.value),Math.round(+hEl.value))||"custom"; onChange(); };
+  wEl.addEventListener("input",typed); hEl.addEventListener("input",typed);
 }
-document.getElementById("applyWH").onclick=applySizeFields;
-["cw","ch"].forEach(id=>document.getElementById(id).addEventListener("keydown",e=>{ e.stopPropagation(); if(e.key==="Enter"){ e.preventDefault(); applySizeFields(); } }));
+const dimsFrom=(sel,wEl,hEl)=>{ const p=PRESETS[sel.value]; return { w:clampDim(wEl.value), h:clampDim(hEl.value), g:p?p.g:null, scale:p?p.scale:null }; };
 function remapData(d,w,h){ const nd=new Array(w*h).fill(null);
   for(let y=0;y<Math.min(h,state.H);y++) for(let x=0;x<Math.min(w,state.W);x++) nd[y*w+x]=d[y*state.W+x];
   return nd; }
@@ -985,19 +976,54 @@ document.getElementById("rot180").onclick=()=>transformCanvas("180");
 document.getElementById("flipH").onclick=()=>transformCanvas("flipH");
 document.getElementById("flipV").onclick=()=>transformCanvas("flipV");
 
-// Modale Taille de l'image
-document.getElementById("sizeOpen").onclick=()=>document.getElementById("sizeModal").classList.add("open");
-document.getElementById("sizeClose").onclick=()=>document.getElementById("sizeModal").classList.remove("open");
-document.getElementById("sizeOk").onclick=()=>{
-  if(!document.getElementById("customWH").hidden) applySizeFields();        // une taille saisie mais pas encore appliquée
-  document.getElementById("sizeModal").classList.remove("open"); };
-document.getElementById("sizeModal").addEventListener("click",e=>{ if(e.target.id==="sizeModal") e.currentTarget.classList.remove("open"); });
-export function resize(w,h){
+// Modale Taille de l'image : aperçu EN DIRECT sur le dessin (l'état d'origine est capturé, chaque réglage repart de lui),
+// OK valide en une seule étape annulable, Annuler / × / Échap / clic à côté restaurent l'original.
+const sizeModal=document.getElementById("sizeModal"), sizeW=document.getElementById("sizeW"), sizeH=document.getElementById("sizeH");
+let sizeOrig=null, sizeTimer=0;
+function sizeDims(){ return dimsFrom(presetSel,sizeW,sizeH); }
+function sizePreview(){
+  sizeTimer=0; if(!sizeOrig) return;
+  const d=sizeDims();
+  restoreSilent(sizeOrig); buildFrames();
+  state.guides=d.g;
+  if(d.w!==sizeOrig.W || d.h!==sizeOrig.H) resize(d.w,d.h,{preview:true}); else { fitZoom(); render(); }
+}
+function sizeSchedule(){ clearTimeout(sizeTimer); sizeTimer=setTimeout(sizePreview,120); }
+wireSizePicker(presetSel,sizeW,sizeH,sizeSchedule);
+function openSizeModal(){
+  if(state.activeShape) bakeShape();
+  commitFloat(); state.sel=null;
+  sizeOrig=captureState();
+  sizeW.value=state.W; sizeH.value=state.H;
+  presetSel.value=Object.keys(PRESETS).find(k=>PRESETS[k].w===state.W&&PRESETS[k].h===state.H&&(!!PRESETS[k].g)===(!!state.guides))||presetKeyFor(state.W,state.H)||"custom";
+  sizeModal.classList.add("open");
+}
+function closeSizeModal(){ clearTimeout(sizeTimer); sizeTimer=0; sizeModal.classList.remove("open"); }
+export function cancelSizeModal(){
+  if(!sizeOrig) { closeSizeModal(); return; }
+  clearTimeout(sizeTimer); restoreSilent(sizeOrig); buildFrames(); sizeOrig=null; closeSizeModal(); afterSizeRestore(); render();
+}
+function confirmSizeModal(){
+  const d=sizeDims(), orig=sizeOrig; sizeOrig=null; closeSizeModal();
+  if(!orig) return;
+  restoreSilent(orig); buildFrames();                   // on repart de l'original : une seule étape d'historique, annulable
+  if(d.w!==orig.W || d.h!==orig.H) resize(d.w,d.h);
+  state.guides=d.g; if(d.scale) document.getElementById("expScale").value=d.scale;
+  afterSizeRestore(); render();
+}
+document.getElementById("sizeOpen").onclick=openSizeModal;
+document.getElementById("sizeClose").onclick=cancelSizeModal;
+document.getElementById("sizeCancel").onclick=cancelSizeModal;
+document.getElementById("sizeOk").onclick=confirmSizeModal;
+sizeModal.addEventListener("click",e=>{ if(e.target.id==="sizeModal") cancelSizeModal(); });
+["sizeW","sizeH"].forEach(id=>document.getElementById(id).addEventListener("keydown",e=>{ e.stopPropagation();
+  if(e.key==="Enter"){ e.preventDefault(); confirmSizeModal(); } else if(e.key==="Escape"){ e.preventDefault(); cancelSizeModal(); } }));
+export function resize(w,h,opts){
   w=Math.max(8,Math.min(512,w|0)); h=Math.max(8,Math.min(512,h|0));
   if(w===state.W && h===state.H) return false;
   if(state.activeShape) bakeShape();
   commitFloat(); state.sel=null;
-  snapshot("Taille de l'image");               // annulable : l'historique garde l'ancienne taille
+  if(!(opts&&opts.preview)) snapshot("Taille de l'image");   // annulable : l'historique garde l'ancienne taille (pas d'entrée pour un simple aperçu)
   transformAllFrames(layers=>{
     layers.forEach(L=>{ if(!L.isGroup) bakeOffset(L); });
     layers.forEach(L=>{ if(!L.img && !L.isGroup) L.data=remapData(L.data,w,h); });
@@ -1034,7 +1060,7 @@ document.querySelectorAll(".menu").forEach(menu=>{
   menu.addEventListener("click",e=>{ e.stopPropagation(); if(e.target.closest("[data-close]")) closeMenus(); });
 });
 document.addEventListener("click",closeMenus);
-window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden){ closeColorPop(); return; } if(state.cropRect){ state.cropRect=null; render(); return; } if(state.activeShape){ cancelShape(); return; } if(state.floatSel){ commitFloat(); state.sel=null; render(); return; } if(state.sel){ state.sel=null; render(); return; } if(document.getElementById("confirmModal").classList.contains("open")){ closeConfirm(); return; } if(newModal.classList.contains("open")){ closeNewModal(); return; } if(document.getElementById("fxModal").classList.contains("open")){ fxCancel(); return; } closeMenus(); document.getElementById("prefsModal").classList.remove("open"); document.getElementById("sizeModal").classList.remove("open"); } });
+window.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(!colorPop.hidden){ closeColorPop(); return; } if(state.cropRect){ state.cropRect=null; render(); return; } if(state.activeShape){ cancelShape(); return; } if(state.floatSel){ commitFloat(); state.sel=null; render(); return; } if(state.sel){ state.sel=null; render(); return; } if(document.getElementById("confirmModal").classList.contains("open")){ closeConfirm(); return; } if(newModal.classList.contains("open")){ closeNewModal(); return; } if(document.getElementById("fxModal").classList.contains("open")){ fxCancel(); return; } closeMenus(); document.getElementById("prefsModal").classList.remove("open"); cancelSizeModal(); } });
 
 // ---------- Nom du projet ----------
 const docNameEl=document.getElementById("docName");
@@ -1071,63 +1097,63 @@ export function newProject({name,w,h,guides,scale,bg}={}){
 export function resetToBlankProject(){ newProject({name:state.projectName}); }
 
 // ---------- Modale « Nouvelle image » ----------
+// Même principe que « Taille de l'image » : format au-dessus, largeur × hauteur toujours modifiables, aperçu EN DIRECT d'un
+// canevas vierge derrière la fenêtre (le projet en cours est mis de côté puis restauré si on annule).
 const newModal=document.getElementById("newModal");
 const newPresetSel=document.getElementById("newPreset");
 newPresetSel.innerHTML=presetSel.innerHTML;      // mêmes formats que « Taille de l'image »
+const newW=document.getElementById("newW"), newH=document.getElementById("newH");
 const newBgOn=document.getElementById("newBgOn"), newBgSw=document.getElementById("newBgColor");
-let newBgHex="#FFFFFF";
-function newDims(){
-  const v=newPresetSel.value;
-  if(v==="custom"){
-    const cw=Math.max(8,Math.min(512,+document.getElementById("newW").value||96));
-    const ch=Math.max(8,Math.min(512,+document.getElementById("newH").value||96));
-    return {w:cw,h:ch,g:null,scale:null};
-  }
-  const p=PRESETS[v]||PRESETS["50x70"];
-  return {w:p.w,h:p.h,g:p.g,scale:p.scale};
-}
-function refreshNewModal(){
-  const custom=newPresetSel.value==="custom";
-  document.getElementById("newCustomWH").hidden=!custom;
+let newBgHex="#FFFFFF", newOrig=null, newTimer=0;
+const newDims=()=>dimsFrom(newPresetSel,newW,newH);
+function newPreview(){
+  newTimer=0; if(!newOrig) return;
   const d=newDims();
-  newBgSw.disabled=!newBgOn.checked;
-  newBgSw.style.background=newBgOn.checked?newBgHex:"transparent";
-  document.getElementById("newNote").textContent =
-    `${d.w} × ${d.h} pixels`+(d.scale?` · export conseillé ×${d.scale}`:"")+(d.g?" · avec repères de coupe":"");
+  restoreSilent(newOrig);
+  state.W=d.w; state.H=d.h; state.guides=d.g; state.sel=null; state.floatSel=null;
+  const bgL=newLayer("Fond"); if(newBgOn.checked) bgL.data.fill(newBgHex);
+  state.layers=[bgL,newLayer("Dessin")]; state.active=1;
+  state.frames=[{ id:state.frameSeq++, name:"1", layers:cloneLayers(state.layers), active:1, delay:null }]; state.activeFrame=0;
+  buildLayers(); buildFrames(); fitZoom(); render();
 }
+function newSchedule(){
+  newBgSw.disabled=!newBgOn.checked; newBgSw.style.background=newBgOn.checked?newBgHex:"transparent";
+  clearTimeout(newTimer); newTimer=setTimeout(newPreview,120);
+}
+wireSizePicker(newPresetSel,newW,newH,newSchedule);
 export function openNewModal(){
+  if(state.activeShape) bakeShape();
+  commitFloat(); state.sel=null;
+  newOrig=captureState();
   document.getElementById("newName").value="";
-  const cur=presetSel.value;
-  newPresetSel.value=(cur&&(PRESETS[cur]||cur==="custom"))?cur:"50x70";
-  document.getElementById("newW").value=state.W;
-  document.getElementById("newH").value=state.H;
+  newW.value=state.W; newH.value=state.H;
+  newPresetSel.value=presetKeyFor(state.W,state.H)||"custom";
   newBgOn.checked=false;
-  refreshNewModal();
+  newSchedule(); newPreview();
   newModal.classList.add("open");
   setTimeout(()=>document.getElementById("newName").focus(),0);
 }
-export function closeNewModal(){ newModal.classList.remove("open"); }
+function closeNewModalOnly(){ clearTimeout(newTimer); newTimer=0; newModal.classList.remove("open"); }
+export function closeNewModal(){                        // annuler : on remet le projet d'origine
+  const orig=newOrig; newOrig=null; closeNewModalOnly();
+  if(orig){ restoreSilent(orig); buildFrames(); afterSizeRestore(); render(); }
+}
 function confirmNewProject(){
-  const d=newDims();
-  const name=document.getElementById("newName").value;
-  closeNewModal();
+  const d=newDims(), name=document.getElementById("newName").value, orig=newOrig;
+  newOrig=null; closeNewModalOnly();
+  if(orig){ restoreSilent(orig); }                       // newProject repart du projet d'origine (rien ne subsiste de l'aperçu)
   newProject({ name:name||"Sans titre", w:d.w, h:d.h, guides:d.g, scale:d.scale, bg:newBgOn.checked?newBgHex:null });
   showToast("Nouveau projet « "+state.projectName+" » ("+d.w+"×"+d.h+").",{type:"success"});
 }
-newPresetSel.onchange=refreshNewModal;
-document.getElementById("newW").oninput=refreshNewModal;
-document.getElementById("newH").oninput=refreshNewModal;
-newBgOn.onchange=refreshNewModal;
-newBgSw.onclick=()=>openColorPicker(newBgSw, newBgHex, hex=>{ newBgHex=hex; refreshNewModal(); });
+newBgOn.onchange=newSchedule;
+newBgSw.onclick=()=>openColorPicker(newBgSw, newBgHex, hex=>{ newBgHex=hex; newSchedule(); });
 document.getElementById("newCancel").onclick=closeNewModal;
 document.getElementById("newClose").onclick=closeNewModal;
 newModal.addEventListener("click",e=>{ if(e.target.id==="newModal") closeNewModal(); });
 document.getElementById("newOk").onclick=confirmNewProject;
-document.getElementById("newName").addEventListener("keydown",e=>{ e.stopPropagation();
+["newName","newW","newH"].forEach(id=>document.getElementById(id).addEventListener("keydown",e=>{ e.stopPropagation();
   if(e.key==="Enter"){ e.preventDefault(); confirmNewProject(); }
-  else if(e.key==="Escape"){ e.preventDefault(); closeNewModal(); } });
-document.getElementById("newW").addEventListener("keydown",e=>{ if(e.key==="Escape") closeNewModal(); });
-document.getElementById("newH").addEventListener("keydown",e=>{ if(e.key==="Escape") closeNewModal(); });
+  else if(e.key==="Escape"){ e.preventDefault(); closeNewModal(); } }));
 
 // ---------- Préférences ----------
 export const prefs={ stageBg:"#0d1424", checker:true, checkerContrast:50, gridAlpha:0.08, wheelZoom:false,

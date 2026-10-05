@@ -4,7 +4,7 @@ const $$=(sel,root=document)=>[...root.querySelectorAll(sel)];
 // 1) champs numériques : assez larges pour le nombre de chiffres attendu (d'après max), avec de la marge
 $$("input[type=number]").forEach(el=>{
   const max=el.getAttribute("max"), min=+el.getAttribute("min");
-  const digits = max ? String(Math.abs(+max)).length+1 : 5;
+  const digits = el.dataset.digits ? +el.dataset.digits : (max ? String(Math.abs(+max)).length+1 : 5);
   el.style.setProperty("--digits",Math.min(7,Math.max(3,digits+(min<0?1:0))));
   if(!(min<0)) el.setAttribute("inputmode","numeric");        // pavé numérique (sans signe moins) quand les valeurs sont positives
   el.addEventListener("focus",()=>{ try{ el.select(); }catch(_){} });      // un toucher remplace la valeur au lieu de la compléter
